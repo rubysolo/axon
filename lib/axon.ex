@@ -1235,7 +1235,16 @@ defmodule Axon do
     beta_regularizer = opts[:beta_regularizer]
     beta = param("beta", beta_shape, initializer: beta_initializer, regularizer: beta_regularizer)
 
-    layer(x, norm, shape, %{"gamma" => gamma, "beta" => beta}, opts[:name],
+    # TODO: Shape check, possibly not needed for all layers
+    mean = param("mean", gamma_shape, initializer: :zeros)
+    var = param("var", gamma_shape, initializer: :zeros)
+
+    layer(
+      x,
+      norm,
+      shape,
+      %{"gamma" => gamma, "beta" => beta, "mean" => mean, "var" => var},
+      opts[:name],
       epsilon: epsilon,
       channel_index: channel_index
     )

@@ -680,6 +680,33 @@ defmodule Axon.Compiler do
   end
 
   ## Normalization Layers
+  defp recur_predict_fun(
+         %Axon{
+           id: id,
+           name: name,
+           op: :batch_norm,
+           parent: parent,
+           opts: opts,
+           params: layer_params,
+           policy: %{compute: compute, output: output}
+         },
+         cache,
+         input_map,
+         params,
+         inputs,
+         :inference
+       ) do
+    {res, cache} = to_predict_fun(parent, cache, input_map, params, inputs, :inference)
+
+    input = Nx.as_type(res, compute)
+    g = layer_param(layer_params, "gamma", params[name], compute)
+    b = layer_param(layer_params, "beta", params[name], compute)
+    mean = layer_param(layer_params, "mean", params[name], compute)
+    var = layer_param(layer_params, "var", params[name], compute)
+    res = Nx.as_type(Axon.Layers.batch_norm(input, g, b, mean, var, opts), output)
+
+    {res, Map.put(cache, id, res)}
+  end
 
   @normalization_layers [:batch_norm, :layer_norm, :group_norm, :instance_norm]
 

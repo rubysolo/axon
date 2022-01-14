@@ -1118,6 +1118,34 @@ defmodule Axon.Layers do
     normalize(input, mean, var, gamma, bias, epsilon: opts[:epsilon])
   end
 
+  defn batch_norm(input, gamma, bias, mean, var, opts \\ []) do
+    opts = keyword!(opts, epsilon: 1.0e-5, channel_index: 1)
+    channel_index = opts[:channel_index]
+
+    num_channels =
+      transform({input, channel_index}, fn {inp, channel_idx} ->
+        elem(Nx.shape(inp), channel_idx)
+      end)
+
+    {gamma, bias, mean, var} =
+      transform({gamma, bias, mean, var, Nx.rank(input), num_channels, channel_index}, fn {g, b,
+                                                                                           m, v,
+                                                                                           rank,
+                                                                                           num_channels,
+                                                                                           channel_idx} ->
+        new_shape =
+          1
+          |> List.duplicate(rank)
+          |> List.to_tuple()
+          |> put_elem(channel_idx, num_channels)
+
+        {Nx.reshape(g, new_shape), Nx.reshape(b, new_shape), Nx.reshape(m, new_shape),
+         Nx.reshape(v, new_shape)}
+      end)
+
+    normalize(input, mean, var, gamma, bias, epsilon: opts[:epsilon])
+  end
+
   @doc ~S"""
   Functional implementation of layer normalization.
 
