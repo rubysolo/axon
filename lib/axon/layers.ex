@@ -1128,19 +1128,20 @@ defmodule Axon.Layers do
       end)
 
     {gamma, bias, mean, var} =
-      transform({gamma, bias, mean, var, Nx.rank(input), num_channels, channel_index}, fn {g, b,
-                                                                                           m, v,
-                                                                                           rank,
-                                                                                           num_channels,
-                                                                                           channel_idx} ->
-        new_shape =
-          1
-          |> List.duplicate(rank)
-          |> List.to_tuple()
-          |> put_elem(channel_idx, num_channels)
+      transform({gamma, bias, mean, var, Nx.rank(input), num_channels, channel_index}, fn
+        {g, b, m, v, rank, num_channels, channel_idx} ->
+          new_shape =
+            1
+            |> List.duplicate(rank)
+            |> List.to_tuple()
+            |> put_elem(channel_idx, num_channels)
 
-        {Nx.reshape(g, new_shape), Nx.reshape(b, new_shape), Nx.reshape(m, new_shape),
-         Nx.reshape(v, new_shape)}
+          {
+            Nx.reshape(g, new_shape),
+            Nx.reshape(b, new_shape),
+            Nx.reshape(m, new_shape),
+            Nx.reshape(v, new_shape)
+          }
       end)
 
     normalize(input, mean, var, gamma, bias, epsilon: opts[:epsilon])

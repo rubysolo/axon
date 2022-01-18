@@ -2195,7 +2195,16 @@ defmodule Axon do
           "#{inspect(op)}"
         end
 
-      row = [name <> " ( #{op_string} #{inspect(names)} )", "#{inspect(shape)}", 0]
+      name =
+        case name do
+          name when is_binary(name) ->
+            name
+
+          name ->
+            "#{inspect(name)}"
+        end
+
+      row = ["#{name} ( #{op_string} #{inspect(names)} )", "#{inspect(shape)}", 0]
 
       {row, cache}
     end
@@ -2216,13 +2225,14 @@ defmodule Axon do
         params
         |> Enum.reduce(0, fn {_, %Axon.Parameter{shape: shape}}, acc -> acc + Nx.size(shape) end)
 
-      op_inspect =
-        case op do
-          op when is_atom(op) -> Atom.to_string(op)
-          _ -> "custom"
+      op_string =
+        if is_atom(op) do
+          "#{Atom.to_string(op)}"
+        else
+          "#{inspect(op)}"
         end
 
-      row = [name <> " ( #{op_inspect} )", "#{inspect(shape)}", "#{num_params}"]
+      row = [name <> " ( #{op_string} )", "#{inspect(shape)}", "#{num_params}"]
       {row, cache}
     end
   end

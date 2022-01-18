@@ -166,18 +166,13 @@ defmodule Axon.Shared do
   defn reciprocal(x), do: Nx.divide(1, x)
 
   defn normalize(input, mean, variance, gamma, bias, opts \\ []) do
-    opts = keyword!(opts, epsilon: 1.0e-6)
+    opts = keyword!(opts, epsilon: 1.0e-5)
 
-    scale =
-      variance
-      |> Nx.add(opts[:epsilon])
-      |> Nx.rsqrt()
-      |> Nx.multiply(gamma)
-
-    input
-    |> Nx.subtract(mean)
-    |> Nx.multiply(scale)
-    |> Nx.add(bias)
+    y = input - mean
+    mul = 1 / Nx.sqrt(variance + opts[:epsilon])
+    mul = mul * gamma
+    y = y * mul
+    y + bias
   end
 
   defn mean_and_variance(input, opts \\ []) do
