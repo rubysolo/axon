@@ -53,7 +53,7 @@ defmodule Axon.LoopTest do
           assert tar == Nx.tensor([[1]])
           assert pred == Nx.tensor([[1]])
 
-          assert transform.(state) == %{}
+          assert transform.(state) == %{"parameters" => %{}, "variables" => %{}}
         end
       end
     end
@@ -76,7 +76,7 @@ defmodule Axon.LoopTest do
       assert pred == Nx.tensor([[1]])
       assert loss == Nx.tensor(5.0)
 
-      assert transform.(state) == %{}
+      assert transform.(state) == %{"parameters" => %{}, "variables" => %{}}
     end
 
     test "trainer/3 returns a supervised training loop with custom optimizer" do
@@ -96,7 +96,7 @@ defmodule Axon.LoopTest do
       assert tar == Nx.tensor([[1]])
       assert pred == Nx.tensor([[1]])
 
-      assert transform.(state) == %{}
+      assert transform.(state) == %{"parameters" => %{}, "variables" => %{}}
     end
 
     test "trainer/3 returns a supervised training loop with custom model" do
@@ -115,7 +115,7 @@ defmodule Axon.LoopTest do
       assert tar == Nx.tensor([[1]])
       assert pred == Nx.tensor([[1]])
 
-      assert transform.(state) == %{}
+      assert transform.(state) == %{"parameters" => %{}, "variables" => %{}}
     end
 
     test "trainer/3 returns a supervised training loop with multi-loss" do
@@ -138,7 +138,7 @@ defmodule Axon.LoopTest do
       assert pred == {Nx.tensor([[1]]), Nx.tensor([[1]])}
       assert loss == Nx.tensor(1.0)
 
-      assert transform.(state) == %{}
+      assert transform.(state) == %{"parameters" => %{}, "variables" => %{}}
     end
 
     test "trainer/3 raises on bad inputs" do
@@ -173,6 +173,19 @@ defmodule Axon.LoopTest do
       assert pred == Nx.tensor([[1]])
 
       assert transform.(state) == %{"my_metric" => {}}
+    end
+
+    test "train_step correctly updates batch norm" do
+      model = Axon.input({nil, 32}) |> Axon.batch_norm()
+
+      {init_fn, step_fn} = Axon.Loop.train_step(model, :mean_squared_error, :adam)
+      state = init_fn.()
+
+      IO.inspect state.model_state["variables"]
+      final_state =
+        Nx.Defn.jit(step_fn, [{Nx.broadcast(1.0, {1, 32}), Nx.broadcast(1.0, {1, 32})}, state])
+
+      variables = final_state.model_state["variables"] |> IO.inspect
     end
   end
 

@@ -16,7 +16,7 @@ defmodule CompilerTest do
       input = Nx.random_uniform({1, 1}, type: {:f, 32})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{} = init_fn.()
+      assert %{"parameters" => %{}, "variables" => %{}} == init_fn.()
       assert predict_fn.(%{}, input) == input
     end
 
@@ -27,7 +27,7 @@ defmodule CompilerTest do
         {Nx.random_uniform({1, 1}, type: {:f, 32}), Nx.random_uniform({1, 2}, type: {:f, 32})}
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{} = init_fn.()
+      assert %{"parameters" => %{}, "variables" => %{}} == init_fn.()
       assert predict_fn.(%{}, input) == input
     end
 
@@ -38,7 +38,7 @@ defmodule CompilerTest do
         {Nx.random_uniform({1, 1}, type: {:f, 32}), {Nx.random_uniform({1, 2}, type: {:f, 32})}}
 
       assert {init_fn, predict_fn} = Axon.compile(model1)
-      assert %{} = init_fn.()
+      assert %{"parameters" => %{}, "variables" => %{}} = init_fn.()
       assert predict_fn.(%{}, input1) == input1
 
       model2 =
@@ -52,7 +52,7 @@ defmodule CompilerTest do
            Nx.random_uniform({1, 6}, type: {:f, 32})}}}
 
       assert {init_fn, predict_fn} = Axon.compile(model2)
-      assert %{} = init_fn.()
+      assert %{"parameters" => %{}, "variables" => %{}} = init_fn.()
       assert predict_fn.(%{}, input2) == input2
     end
 
@@ -78,7 +78,7 @@ defmodule CompilerTest do
 
       assert {init_fn, _} = Axon.compile(model)
 
-      assert %{} == init_fn.()
+      assert %{"parameters" => %{}, "variables" => %{}} == init_fn.()
     end
 
     @tag capture_log: true
@@ -127,7 +127,7 @@ defmodule CompilerTest do
         model = Axon.input({nil, 32}) |> Axon.activation(activation)
 
         assert {init_fn, _predict_fn} = Axon.compile(model)
-        assert %{} = init_fn.()
+        assert %{"parameters" => %{}, "variables" => %{}} == init_fn.()
       end
     end
 
@@ -170,7 +170,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 1}) |> Axon.dense(1, name: "dense")
 
       assert {init_fn, _predict_fn} = Axon.compile(model)
-      assert %{"dense" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"dense" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert Nx.shape(kernel) == {1, 1}
       assert Nx.type(kernel) == {:f, 32}
       assert Nx.shape(bias) == {1}
@@ -181,7 +181,7 @@ defmodule CompilerTest do
       model1 = Axon.input({nil, 1}) |> Axon.dense(1, name: "dense", kernel_initializer: :zeros)
 
       assert {init_fn, _predict_fn} = Axon.compile(model1)
-      assert %{"dense" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"dense" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert kernel == Axon.Initializers.zeros(shape: {1, 1})
       assert Nx.shape(bias) == {1}
       assert Nx.type(bias) == {:f, 32}
@@ -189,7 +189,7 @@ defmodule CompilerTest do
       model2 = Axon.input({nil, 1}) |> Axon.dense(1, name: "dense", bias_initializer: :zeros)
 
       assert {init_fn, _predict_fn} = Axon.compile(model2)
-      assert %{"dense" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"dense" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert Nx.shape(kernel) == {1, 1}
       assert Nx.type(kernel) == {:f, 32}
       assert bias == Axon.Initializers.zeros(shape: {1})
@@ -200,7 +200,10 @@ defmodule CompilerTest do
       input = Nx.iota({1, 1}, type: {:f, 32})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"dense" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"dense" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
+
       assert predict_fn.(params, input) == Axon.Layers.dense(input, kernel, bias)
     end
 
@@ -216,7 +219,7 @@ defmodule CompilerTest do
         Nx.Defn.grad(params, &Nx.mean(predict_fn.(&1, input)))
       end
 
-      assert %{"dense" => %{"kernel" => kernel_grad, "bias" => bias_grad}} =
+      assert %{"parameters" => %{"dense" => %{"kernel" => kernel_grad, "bias" => bias_grad}}} =
                Nx.Defn.jit(backward, [init_fn.(), Nx.random_uniform({1, 1})])
 
       assert kernel_grad == Nx.broadcast(0.0, {1, 1})
@@ -229,7 +232,7 @@ defmodule CompilerTest do
       mp_model = AMP.apply_policy(model, policy)
 
       assert {init_fn, _} = Axon.compile(mp_model)
-      assert %{"dense" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"dense" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert Nx.type(kernel) == {:bf, 16}
       assert Nx.type(bias) == {:bf, 16}
     end
@@ -247,7 +250,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 2}) |> Axon.dense(1, name: "dense", use_bias: false)
 
       assert {init_fn, _} = Axon.compile(model)
-      assert %{"dense" => %{"kernel" => _} = dense_params} = init_fn.()
+      assert %{"parameters" => %{"dense" => %{"kernel" => _} = dense_params}} = init_fn.()
       assert Map.has_key?(dense_params, "bias") == false
     end
 
@@ -256,7 +259,7 @@ defmodule CompilerTest do
       input = Nx.random_uniform({1, 2})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"dense" => %{"kernel" => k}} = params = init_fn.()
+      assert %{"parameters" => %{"dense" => %{"kernel" => k}}} = params = init_fn.()
 
       assert Nx.all_close(predict_fn.(params, input), Axon.Layers.dense(input, k, Nx.tensor(0.0))) ==
                Nx.tensor(1, type: {:u, 8})
@@ -270,7 +273,10 @@ defmodule CompilerTest do
       model = Axon.bilinear(input1, input2, 1, name: "bilinear")
 
       assert {init_fn, _predict_fn} = Axon.compile(model)
-      assert %{"bilinear" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+
+      assert %{"parameters" => %{"bilinear" => %{"kernel" => kernel, "bias" => bias}}} =
+               init_fn.()
+
       assert Nx.shape(kernel) == {1, 1, 2}
       assert Nx.type(kernel) == {:f, 32}
       assert Nx.shape(bias) == {1}
@@ -283,7 +289,10 @@ defmodule CompilerTest do
       model1 = Axon.bilinear(input1, input2, 1, name: "bilinear", kernel_initializer: :zeros)
 
       assert {init_fn, _predict_fn} = Axon.compile(model1)
-      assert %{"bilinear" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+
+      assert %{"parameters" => %{"bilinear" => %{"kernel" => kernel, "bias" => bias}}} =
+               init_fn.()
+
       assert kernel == Axon.Initializers.zeros(shape: {1, 1, 2})
       assert Nx.shape(bias) == {1}
       assert Nx.type(bias) == {:f, 32}
@@ -291,7 +300,10 @@ defmodule CompilerTest do
       model2 = Axon.bilinear(input1, input2, 1, name: "bilinear", bias_initializer: :zeros)
 
       assert {init_fn, _predict_fn} = Axon.compile(model2)
-      assert %{"bilinear" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+
+      assert %{"parameters" => %{"bilinear" => %{"kernel" => kernel, "bias" => bias}}} =
+               init_fn.()
+
       assert Nx.shape(kernel) == {1, 1, 2}
       assert Nx.type(kernel) == {:f, 32}
       assert bias == Axon.Initializers.zeros(shape: {1})
@@ -306,7 +318,9 @@ defmodule CompilerTest do
       input2 = Nx.iota({1, 2}, type: {:f, 32})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"bilinear" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"bilinear" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
 
       assert predict_fn.(params, {input1, input2}) ==
                Axon.Layers.bilinear(input1, input2, kernel, bias)
@@ -321,7 +335,9 @@ defmodule CompilerTest do
       input2 = Nx.iota({2, 1}, type: {:f, 32})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"bilinear" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"bilinear" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
 
       assert predict_fn.(params, input1) == Axon.Layers.bilinear(input1, input2, kernel, bias)
     end
@@ -337,7 +353,7 @@ defmodule CompilerTest do
         Nx.Defn.grad(params, &Nx.mean(predict_fn.(&1, input)))
       end
 
-      assert %{"bilinear" => %{"kernel" => kernel_grad, "bias" => bias_grad}} =
+      assert %{"parameters" => %{"bilinear" => %{"kernel" => kernel_grad, "bias" => bias_grad}}} =
                Nx.Defn.jit(backward, [
                  init_fn.(),
                  {Nx.random_uniform({1, 1}), Nx.random_uniform({1, 2})}
@@ -355,7 +371,10 @@ defmodule CompilerTest do
       mp_model = AMP.apply_policy(model, policy)
 
       assert {init_fn, _} = Axon.compile(mp_model)
-      assert %{"bilinear" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+
+      assert %{"parameters" => %{"bilinear" => %{"kernel" => kernel, "bias" => bias}}} =
+               init_fn.()
+
       assert Nx.type(kernel) == {:bf, 16}
       assert Nx.type(bias) == {:bf, 16}
     end
@@ -380,7 +399,7 @@ defmodule CompilerTest do
       model = Axon.bilinear(input1, input2, 1, name: "bilinear", use_bias: false)
 
       assert {init_fn, _} = Axon.compile(model)
-      assert %{"bilinear" => %{"kernel" => _} = bilinear_params} = init_fn.()
+      assert %{"parameters" => %{"bilinear" => %{"kernel" => _} = bilinear_params}} = init_fn.()
       assert Map.has_key?(bilinear_params, "bias") == false
     end
 
@@ -393,7 +412,7 @@ defmodule CompilerTest do
       inp2 = Nx.random_uniform({1, 2})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"bilinear" => %{"kernel" => k}} = params = init_fn.()
+      assert %{"parameters" => %{"bilinear" => %{"kernel" => k}}} = params = init_fn.()
 
       assert Nx.all_close(
                predict_fn.(params, {inp1, inp2}),
@@ -407,7 +426,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 1}) |> Axon.embedding(1, 1, name: "embedding")
 
       assert {init_fn, _predict_fn} = Axon.compile(model)
-      assert %{"embedding" => %{"kernel" => kernel}} = init_fn.()
+      assert %{"parameters" => %{"embedding" => %{"kernel" => kernel}}} = init_fn.()
       assert Nx.shape(kernel) == {1, 1}
       assert Nx.type(kernel) == {:f, 32}
     end
@@ -418,7 +437,7 @@ defmodule CompilerTest do
         |> Axon.embedding(1, 1, name: "embedding", kernel_initializer: :zeros)
 
       assert {init_fn, _predict_fn} = Axon.compile(model1)
-      assert %{"embedding" => %{"kernel" => kernel}} = init_fn.()
+      assert %{"parameters" => %{"embedding" => %{"kernel" => kernel}}} = init_fn.()
       assert kernel == Axon.Initializers.zeros(shape: {1, 1})
     end
 
@@ -430,7 +449,7 @@ defmodule CompilerTest do
       input = Nx.tensor([[0]])
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"embedding" => %{"kernel" => kernel}} = params = init_fn.()
+      assert %{"parameters" => %{"embedding" => %{"kernel" => kernel}}} = params = init_fn.()
       assert predict_fn.(params, input) == Axon.Layers.embedding(input, kernel)
     end
 
@@ -446,7 +465,7 @@ defmodule CompilerTest do
         Nx.Defn.grad(params, &Nx.mean(predict_fn.(&1, input)))
       end
 
-      assert %{"embedding" => %{"kernel" => kernel_grad}} =
+      assert %{"parameters" => %{"embedding" => %{"kernel" => kernel_grad}}} =
                Nx.Defn.jit(backward, [init_fn.(), Nx.tensor([[0]])])
 
       assert kernel_grad == Nx.broadcast(0.0, {1, 1})
@@ -458,7 +477,7 @@ defmodule CompilerTest do
       mp_model = AMP.apply_policy(model, policy)
 
       assert {init_fn, _} = Axon.compile(mp_model)
-      assert %{"embedding" => %{"kernel" => kernel}} = init_fn.()
+      assert %{"parameters" => %{"embedding" => %{"kernel" => kernel}}} = init_fn.()
       assert Nx.type(kernel) == {:bf, 16}
     end
 
@@ -480,7 +499,7 @@ defmodule CompilerTest do
         model = apply(Axon, pool, [Axon.input({nil, 1, 32})])
 
         assert {init_fn, _predict_fn} = Axon.compile(model)
-        assert %{} = init_fn.()
+        assert %{"parameters" => %{}} = init_fn.()
       end
     end
 
@@ -573,7 +592,7 @@ defmodule CompilerTest do
         model = apply(Axon, pool, [Axon.input({nil, 1, 32})])
 
         assert {init_fn, _predict_fn} = Axon.compile(model)
-        assert %{} = init_fn.()
+        assert %{"parameters" => %{}} = init_fn.()
       end
     end
 
@@ -662,7 +681,7 @@ defmodule CompilerTest do
         model = apply(Axon, pool, [Axon.input({nil, 1, 32})])
 
         assert {init_fn, _predict_fn} = Axon.compile(model)
-        assert %{} = init_fn.()
+        assert %{"parameters" => %{}} = init_fn.()
       end
     end
 
@@ -740,7 +759,7 @@ defmodule CompilerTest do
         model = apply(Axon, dropout, [Axon.input({nil, 1, 32})])
 
         assert {init_fn, _predict_fn} = Axon.compile(model)
-        assert %{} = init_fn.()
+        assert %{"parameters" => %{}} = init_fn.()
       end
     end
 
@@ -816,7 +835,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 3, 32, 32}) |> Axon.conv(64, name: "conv")
 
       assert {init_fn, _} = Axon.compile(model)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert Nx.shape(kernel) == {64, 3, 1, 1}
       assert Nx.type(kernel) == {:f, 32}
       assert Nx.shape(bias) == {64}
@@ -828,7 +847,7 @@ defmodule CompilerTest do
         Axon.input({nil, 3, 32, 32}) |> Axon.conv(32, name: "conv", kernel_initializer: :zeros)
 
       assert {init_fn, _predict_fn} = Axon.compile(model1)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert kernel == Axon.Initializers.zeros(shape: {32, 3, 1, 1})
       assert Nx.shape(bias) == {32}
       assert Nx.type(bias) == {:f, 32}
@@ -837,7 +856,7 @@ defmodule CompilerTest do
         Axon.input({nil, 3, 32, 32}) |> Axon.conv(32, name: "conv", bias_initializer: :zeros)
 
       assert {init_fn, _predict_fn} = Axon.compile(model2)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert Nx.shape(kernel) == {32, 3, 1, 1}
       assert Nx.type(kernel) == {:f, 32}
       assert bias == Axon.Initializers.zeros(shape: {32})
@@ -848,21 +867,30 @@ defmodule CompilerTest do
       input1 = Nx.random_uniform({1, 1, 2}, type: {:f, 32})
 
       assert {init_fn, predict_fn} = Axon.compile(model1)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
+
       assert predict_fn.(params, input1) == Axon.Layers.conv(input1, kernel, bias)
 
       model2 = Axon.input({nil, 1, 2, 2}) |> Axon.conv(3, name: "conv")
       input2 = Nx.random_uniform({1, 1, 2, 2}, type: {:f, 32})
 
       assert {init_fn, predict_fn} = Axon.compile(model2)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
+
       assert predict_fn.(params, input2) == Axon.Layers.conv(input2, kernel, bias)
 
       model3 = Axon.input({nil, 1, 2, 2, 2}) |> Axon.conv(4, name: "conv")
       input3 = Nx.random_uniform({1, 1, 2, 2, 2}, type: {:f, 32})
 
       assert {init_fn, predict_fn} = Axon.compile(model3)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
+
       assert predict_fn.(params, input3) == Axon.Layers.conv(input3, kernel, bias)
     end
 
@@ -872,7 +900,10 @@ defmodule CompilerTest do
       input1 = Nx.random_uniform({1, 1, 2})
 
       assert {init_fn, predict_fn} = Axon.compile(model1)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
+
       assert predict_fn.(params, input1) == Axon.Layers.conv(input1, kernel, bias, opts1)
 
       opts2 = [strides: [1, 2], padding: [{0, 1}, {1, 2}], kernel_dilation: 2]
@@ -882,7 +913,10 @@ defmodule CompilerTest do
       input2 = Nx.random_uniform({1, 1, 4, 4})
 
       assert {init_fn, predict_fn} = Axon.compile(model2)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
+
       assert predict_fn.(params, input2) == Axon.Layers.conv(input2, kernel, bias, opts2)
 
       opts3 = [strides: [2, 1, 1]]
@@ -894,7 +928,10 @@ defmodule CompilerTest do
       input3 = Nx.random_uniform({1, 1, 2, 2, 2})
 
       assert {init_fn, predict_fn} = Axon.compile(model3)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
+
       assert predict_fn.(params, input3) == Axon.Layers.conv(input3, kernel, bias, opts3)
     end
 
@@ -910,7 +947,7 @@ defmodule CompilerTest do
         Nx.Defn.grad(params, &Nx.mean(predict_fn.(&1, input)))
       end
 
-      assert %{"conv" => %{"kernel" => kernel_grad, "bias" => bias_grad}} =
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel_grad, "bias" => bias_grad}}} =
                Nx.Defn.jit(backward, [init_fn.(), Nx.random_uniform({1, 1, 32})])
 
       assert kernel_grad == Nx.broadcast(0.0, {1, 1, 1})
@@ -923,7 +960,7 @@ defmodule CompilerTest do
       mp_model = AMP.apply_policy(model, policy)
 
       assert {init_fn, _} = Axon.compile(mp_model)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert Nx.type(kernel) == {:bf, 16}
       assert Nx.type(bias) == {:bf, 16}
     end
@@ -941,7 +978,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 1, 2}) |> Axon.conv(1, name: "conv", use_bias: false)
 
       assert {init_fn, _} = Axon.compile(model)
-      assert %{"conv" => %{"kernel" => _} = conv_params} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => _} = conv_params}} = init_fn.()
       assert Map.has_key?(conv_params, "bias") == false
     end
 
@@ -950,7 +987,7 @@ defmodule CompilerTest do
       input = Nx.random_uniform({1, 1, 2})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"conv" => %{"kernel" => k}} = params = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => k}}} = params = init_fn.()
       assert predict_fn.(params, input) == Axon.Layers.conv(input, k, Nx.tensor(0))
     end
 
@@ -959,7 +996,7 @@ defmodule CompilerTest do
       input = Nx.random_uniform({1, 3, 3, 6})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"conv" => %{"kernel" => k, "bias" => b}} = params = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => k, "bias" => b}}} = params = init_fn.()
       assert predict_fn.(params, input) == Axon.Layers.conv(input, k, b, channels: :last)
     end
   end
@@ -969,7 +1006,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 3, 2, 2}) |> Axon.depthwise_conv(3, name: "conv")
 
       assert {init_fn, _} = Axon.compile(model)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert Nx.shape(kernel) == {9, 1, 1, 1}
       assert Nx.type(kernel) == {:f, 32}
       assert Nx.shape(bias) == {9}
@@ -982,7 +1019,7 @@ defmodule CompilerTest do
         |> Axon.depthwise_conv(3, name: "conv", kernel_initializer: :zeros)
 
       assert {init_fn, _predict_fn} = Axon.compile(model1)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert kernel == Axon.Initializers.zeros(shape: {9, 1, 1, 1})
       assert Nx.shape(bias) == {9}
       assert Nx.type(bias) == {:f, 32}
@@ -992,7 +1029,7 @@ defmodule CompilerTest do
         |> Axon.depthwise_conv(3, name: "conv", bias_initializer: :zeros)
 
       assert {init_fn, _predict_fn} = Axon.compile(model2)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert Nx.shape(kernel) == {9, 1, 1, 1}
       assert Nx.type(kernel) == {:f, 32}
       assert bias == Axon.Initializers.zeros(shape: {9})
@@ -1003,21 +1040,30 @@ defmodule CompilerTest do
       input1 = Nx.random_uniform({1, 1, 8}, type: {:f, 32})
 
       assert {init_fn, predict_fn} = Axon.compile(model1)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
+
       assert predict_fn.(params, input1) == Axon.Layers.depthwise_conv(input1, kernel, bias)
 
       model2 = Axon.input({nil, 1, 2, 2}) |> Axon.depthwise_conv(4, name: "conv")
       input2 = Nx.random_uniform({1, 1, 2, 2}, type: {:f, 32})
 
       assert {init_fn, predict_fn} = Axon.compile(model2)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
+
       assert predict_fn.(params, input2) == Axon.Layers.depthwise_conv(input2, kernel, bias)
 
       model3 = Axon.input({nil, 1, 2, 2, 2}) |> Axon.depthwise_conv(5, name: "conv")
       input3 = Nx.random_uniform({1, 1, 2, 2, 2}, type: {:f, 32})
 
       assert {init_fn, predict_fn} = Axon.compile(model3)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
+
       assert predict_fn.(params, input3) == Axon.Layers.depthwise_conv(input3, kernel, bias)
     end
 
@@ -1031,7 +1077,9 @@ defmodule CompilerTest do
       input1 = Nx.random_uniform({1, 1, 8})
 
       assert {init_fn, predict_fn} = Axon.compile(model1)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
 
       assert predict_fn.(params, input1) ==
                Axon.Layers.depthwise_conv(input1, kernel, bias, opts1)
@@ -1045,7 +1093,9 @@ defmodule CompilerTest do
       input2 = Nx.random_uniform({1, 1, 4, 4})
 
       assert {init_fn, predict_fn} = Axon.compile(model2)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
 
       assert predict_fn.(params, input2) ==
                Axon.Layers.depthwise_conv(input2, kernel, bias, opts2)
@@ -1059,7 +1109,9 @@ defmodule CompilerTest do
       input3 = Nx.random_uniform({1, 1, 3, 2, 2})
 
       assert {init_fn, predict_fn} = Axon.compile(model3)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
 
       assert predict_fn.(params, input3) ==
                Axon.Layers.depthwise_conv(input3, kernel, bias, opts3)
@@ -1077,7 +1129,7 @@ defmodule CompilerTest do
         Nx.Defn.grad(params, &Nx.mean(predict_fn.(&1, input)))
       end
 
-      assert %{"conv" => %{"kernel" => kernel_grad, "bias" => bias_grad}} =
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel_grad, "bias" => bias_grad}}} =
                Nx.Defn.jit(backward, [init_fn.(), Nx.random_uniform({1, 1, 2})])
 
       assert kernel_grad == Nx.broadcast(0.0, {1, 1, 1})
@@ -1090,7 +1142,7 @@ defmodule CompilerTest do
       mp_model = AMP.apply_policy(model, policy)
 
       assert {init_fn, _} = Axon.compile(mp_model)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert Nx.type(kernel) == {:bf, 16}
       assert Nx.type(bias) == {:bf, 16}
     end
@@ -1108,7 +1160,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 1, 2}) |> Axon.depthwise_conv(1, name: "conv", use_bias: false)
 
       assert {init_fn, _} = Axon.compile(model)
-      assert %{"conv" => %{"kernel" => _} = conv_params} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => _} = conv_params}} = init_fn.()
       assert Map.has_key?(conv_params, "bias") == false
     end
 
@@ -1117,7 +1169,7 @@ defmodule CompilerTest do
       input = Nx.random_uniform({1, 1, 2})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"conv" => %{"kernel" => k}} = params = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => k}}} = params = init_fn.()
       assert predict_fn.(params, input) == Axon.Layers.depthwise_conv(input, k, Nx.tensor(0))
     end
 
@@ -1126,7 +1178,7 @@ defmodule CompilerTest do
       input = Nx.random_uniform({1, 3, 3, 6})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"conv" => %{"kernel" => k, "bias" => b}} = params = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => k, "bias" => b}}} = params = init_fn.()
 
       assert predict_fn.(params, input) ==
                Axon.Layers.depthwise_conv(input, k, b, channels: :last)
@@ -1138,7 +1190,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 3, 2, 2}) |> Axon.conv_transpose(32, name: "conv")
 
       assert {init_fn, _} = Axon.compile(model)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert Nx.shape(kernel) == {32, 3, 1, 1}
       assert Nx.type(kernel) == {:f, 32}
       assert Nx.shape(bias) == {32}
@@ -1151,7 +1203,7 @@ defmodule CompilerTest do
         |> Axon.conv_transpose(32, name: "conv", kernel_initializer: :zeros)
 
       assert {init_fn, _predict_fn} = Axon.compile(model1)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert kernel == Axon.Initializers.zeros(shape: {32, 3, 1, 1})
       assert Nx.shape(bias) == {32}
       assert Nx.type(bias) == {:f, 32}
@@ -1161,7 +1213,7 @@ defmodule CompilerTest do
         |> Axon.conv_transpose(32, name: "conv", bias_initializer: :zeros)
 
       assert {init_fn, _predict_fn} = Axon.compile(model2)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert Nx.shape(kernel) == {32, 3, 1, 1}
       assert Nx.type(kernel) == {:f, 32}
       assert bias == Axon.Initializers.zeros(shape: {32})
@@ -1172,21 +1224,30 @@ defmodule CompilerTest do
       input1 = Nx.random_uniform({1, 1, 4}, type: {:f, 32})
 
       assert {init_fn, predict_fn} = Axon.compile(model1)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
+
       assert predict_fn.(params, input1) == Axon.Layers.conv_transpose(input1, kernel, bias)
 
       model2 = Axon.input({nil, 1, 4, 4}) |> Axon.conv_transpose(4, name: "conv")
       input2 = Nx.random_uniform({1, 1, 4, 4}, type: {:f, 32})
 
       assert {init_fn, predict_fn} = Axon.compile(model2)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
+
       assert predict_fn.(params, input2) == Axon.Layers.conv_transpose(input2, kernel, bias)
 
       model3 = Axon.input({nil, 1, 2, 2, 2}) |> Axon.conv_transpose(5, name: "conv")
       input3 = Nx.random_uniform({1, 1, 2, 2, 2}, type: {:f, 32})
 
       assert {init_fn, predict_fn} = Axon.compile(model3)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
+
       assert predict_fn.(params, input3) == Axon.Layers.conv_transpose(input3, kernel, bias)
     end
 
@@ -1200,7 +1261,9 @@ defmodule CompilerTest do
       input1 = Nx.random_uniform({1, 1, 4})
 
       assert {init_fn, predict_fn} = Axon.compile(model1)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
 
       assert predict_fn.(params, input1) ==
                Axon.Layers.conv_transpose(input1, kernel, bias, opts1)
@@ -1214,7 +1277,9 @@ defmodule CompilerTest do
       input2 = Nx.random_uniform({1, 1, 4, 4})
 
       assert {init_fn, predict_fn} = Axon.compile(model2)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
 
       assert predict_fn.(params, input2) ==
                Axon.Layers.conv_transpose(input2, kernel, bias, opts2)
@@ -1228,7 +1293,9 @@ defmodule CompilerTest do
       input3 = Nx.random_uniform({1, 1, 2, 2, 2})
 
       assert {init_fn, predict_fn} = Axon.compile(model3)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} =
+               params = init_fn.()
 
       assert predict_fn.(params, input3) ==
                Axon.Layers.conv_transpose(input3, kernel, bias, opts3)
@@ -1246,7 +1313,7 @@ defmodule CompilerTest do
         Nx.Defn.grad(params, &Nx.mean(predict_fn.(&1, input)))
       end
 
-      assert %{"conv" => %{"kernel" => kernel_grad, "bias" => bias_grad}} =
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel_grad, "bias" => bias_grad}}} =
                Nx.Defn.jit(backward, [init_fn.(), Nx.random_uniform({1, 1, 2})])
 
       assert kernel_grad == Nx.broadcast(0.0, {1, 1, 1})
@@ -1259,7 +1326,7 @@ defmodule CompilerTest do
       mp_model = AMP.apply_policy(model, policy)
 
       assert {init_fn, _} = Axon.compile(mp_model)
-      assert %{"conv" => %{"kernel" => kernel, "bias" => bias}} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => kernel, "bias" => bias}}} = init_fn.()
       assert Nx.type(kernel) == {:bf, 16}
       assert Nx.type(bias) == {:bf, 16}
     end
@@ -1277,7 +1344,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 1, 2}) |> Axon.conv_transpose(1, name: "conv", use_bias: false)
 
       assert {init_fn, _} = Axon.compile(model)
-      assert %{"conv" => %{"kernel" => _} = conv_params} = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => _} = conv_params}} = init_fn.()
       assert Map.has_key?(conv_params, "bias") == false
     end
 
@@ -1286,7 +1353,7 @@ defmodule CompilerTest do
       input = Nx.random_uniform({1, 1, 2})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"conv" => %{"kernel" => k}} = params = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => k}}} = params = init_fn.()
       assert predict_fn.(params, input) == Axon.Layers.conv_transpose(input, k, Nx.tensor(0))
     end
 
@@ -1295,7 +1362,7 @@ defmodule CompilerTest do
       input = Nx.random_uniform({1, 3, 3, 6})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"conv" => %{"kernel" => k, "bias" => b}} = params = init_fn.()
+      assert %{"parameters" => %{"conv" => %{"kernel" => k, "bias" => b}}} = params = init_fn.()
 
       assert predict_fn.(params, input) ==
                Axon.Layers.conv_transpose(input, k, b, channels: :last)
@@ -1309,11 +1376,13 @@ defmodule CompilerTest do
       assert {init_fn, _} = Axon.compile(model)
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1,
-                 "bias_1" => b1,
-                 "kernel_2" => k2,
-                 "bias_2" => b2
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1,
+                   "bias_1" => b1,
+                   "kernel_2" => k2,
+                   "bias_2" => b2
+                 }
                }
              } = init_fn.()
 
@@ -1335,11 +1404,13 @@ defmodule CompilerTest do
       assert {init_fn, _} = Axon.compile(model1)
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1,
-                 "bias_1" => b1,
-                 "kernel_2" => k2,
-                 "bias_2" => b2
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1,
+                   "bias_1" => b1,
+                   "kernel_2" => k2,
+                   "bias_2" => b2
+                 }
                }
              } = init_fn.()
 
@@ -1357,11 +1428,13 @@ defmodule CompilerTest do
       assert {init_fn, _} = Axon.compile(model2)
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1,
-                 "bias_1" => b1,
-                 "kernel_2" => k2,
-                 "bias_2" => b2
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1,
+                   "bias_1" => b1,
+                   "kernel_2" => k2,
+                   "bias_2" => b2
+                 }
                }
              } = init_fn.()
 
@@ -1380,11 +1453,13 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model)
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1,
-                 "bias_1" => b1,
-                 "kernel_2" => k2,
-                 "bias_2" => b2
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1,
+                   "bias_1" => b1,
+                   "kernel_2" => k2,
+                   "bias_2" => b2
+                 }
                }
              } = params = init_fn.()
 
@@ -1403,11 +1478,13 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model)
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1,
-                 "bias_1" => b1,
-                 "kernel_2" => k2,
-                 "bias_2" => b2
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1,
+                   "bias_1" => b1,
+                   "kernel_2" => k2,
+                   "bias_2" => b2
+                 }
                }
              } = params = init_fn.()
 
@@ -1428,11 +1505,13 @@ defmodule CompilerTest do
       end
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1_grad,
-                 "bias_1" => b1_grad,
-                 "kernel_2" => k2_grad,
-                 "bias_2" => b2_grad
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1_grad,
+                   "bias_1" => b1_grad,
+                   "kernel_2" => k2_grad,
+                   "bias_2" => b2_grad
+                 }
                }
              } = Nx.Defn.jit(backward, [init_fn.(), Nx.random_uniform({1, 1, 3, 2})])
 
@@ -1450,11 +1529,13 @@ defmodule CompilerTest do
       assert {init_fn, _} = Axon.compile(mp_model)
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1,
-                 "bias_1" => b1,
-                 "kernel_2" => k2,
-                 "bias_2" => b2
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1,
+                   "bias_1" => b1,
+                   "kernel_2" => k2,
+                   "bias_2" => b2
+                 }
                }
              } = init_fn.()
 
@@ -1478,7 +1559,10 @@ defmodule CompilerTest do
         Axon.input({nil, 1, 2, 2}) |> Axon.separable_conv2d(1, name: "conv", use_bias: false)
 
       assert {init_fn, _} = Axon.compile(model)
-      assert %{"conv" => %{"kernel_1" => _, "kernel_2" => _} = conv_params} = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel_1" => _, "kernel_2" => _} = conv_params}} =
+               init_fn.()
+
       assert Map.has_key?(conv_params, "bias_1") == false
       assert Map.has_key?(conv_params, "bias_2") == false
     end
@@ -1490,7 +1574,9 @@ defmodule CompilerTest do
       input = Nx.random_uniform({1, 1, 2, 2})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"conv" => %{"kernel_1" => k1, "kernel_2" => k2}} = params = init_fn.()
+
+      assert %{"parameters" => %{"conv" => %{"kernel_1" => k1, "kernel_2" => k2}}} =
+               params = init_fn.()
 
       assert predict_fn.(params, input) ==
                Axon.Layers.separable_conv2d(input, k1, Nx.tensor(0), k2, Nx.tensor(0))
@@ -1504,8 +1590,11 @@ defmodule CompilerTest do
 
       assert {init_fn, predict_fn} = Axon.compile(model)
 
-      assert %{"conv" => %{"kernel_1" => k1, "kernel_2" => k2, "bias_1" => b1, "bias_2" => b2}} =
-               params = init_fn.()
+      assert %{
+               "parameters" => %{
+                 "conv" => %{"kernel_1" => k1, "kernel_2" => k2, "bias_1" => b1, "bias_2" => b2}
+               }
+             } = params = init_fn.()
 
       assert predict_fn.(params, input) ==
                Axon.Layers.separable_conv2d(input, k1, b1, k2, b2, channels: :last)
@@ -1519,13 +1608,15 @@ defmodule CompilerTest do
       assert {init_fn, _} = Axon.compile(model)
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1,
-                 "bias_1" => b1,
-                 "kernel_2" => k2,
-                 "bias_2" => b2,
-                 "kernel_3" => k3,
-                 "bias_3" => b3
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1,
+                   "bias_1" => b1,
+                   "kernel_2" => k2,
+                   "bias_2" => b2,
+                   "kernel_3" => k3,
+                   "bias_3" => b3
+                 }
                }
              } = init_fn.()
 
@@ -1551,13 +1642,15 @@ defmodule CompilerTest do
       assert {init_fn, _} = Axon.compile(model1)
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1,
-                 "bias_1" => b1,
-                 "kernel_2" => k2,
-                 "bias_2" => b2,
-                 "kernel_3" => k3,
-                 "bias_3" => b3
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1,
+                   "bias_1" => b1,
+                   "kernel_2" => k2,
+                   "bias_2" => b2,
+                   "kernel_3" => k3,
+                   "bias_3" => b3
+                 }
                }
              } = init_fn.()
 
@@ -1580,13 +1673,15 @@ defmodule CompilerTest do
       assert {init_fn, _} = Axon.compile(model2)
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1,
-                 "bias_1" => b1,
-                 "kernel_2" => k2,
-                 "bias_2" => b2,
-                 "kernel_3" => k3,
-                 "bias_3" => b3
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1,
+                   "bias_1" => b1,
+                   "kernel_2" => k2,
+                   "bias_2" => b2,
+                   "kernel_3" => k3,
+                   "bias_3" => b3
+                 }
                }
              } = init_fn.()
 
@@ -1610,13 +1705,15 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model)
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1,
-                 "bias_1" => b1,
-                 "kernel_2" => k2,
-                 "bias_2" => b2,
-                 "kernel_3" => k3,
-                 "bias_3" => b3
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1,
+                   "bias_1" => b1,
+                   "kernel_2" => k2,
+                   "bias_2" => b2,
+                   "kernel_3" => k3,
+                   "bias_3" => b3
+                 }
                }
              } = params = init_fn.()
 
@@ -1636,13 +1733,15 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model)
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1,
-                 "bias_1" => b1,
-                 "kernel_2" => k2,
-                 "bias_2" => b2,
-                 "kernel_3" => k3,
-                 "bias_3" => b3
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1,
+                   "bias_1" => b1,
+                   "kernel_2" => k2,
+                   "bias_2" => b2,
+                   "kernel_3" => k3,
+                   "bias_3" => b3
+                 }
                }
              } = params = init_fn.()
 
@@ -1663,13 +1762,15 @@ defmodule CompilerTest do
       end
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1_grad,
-                 "bias_1" => b1_grad,
-                 "kernel_2" => k2_grad,
-                 "bias_2" => b2_grad,
-                 "kernel_3" => k3_grad,
-                 "bias_3" => b3_grad
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1_grad,
+                   "bias_1" => b1_grad,
+                   "kernel_2" => k2_grad,
+                   "bias_2" => b2_grad,
+                   "kernel_3" => k3_grad,
+                   "bias_3" => b3_grad
+                 }
                }
              } = Nx.Defn.jit(backward, [init_fn.(), Nx.random_uniform({1, 1, 3, 2, 2})])
 
@@ -1689,13 +1790,15 @@ defmodule CompilerTest do
       assert {init_fn, _} = Axon.compile(mp_model)
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1,
-                 "bias_1" => b1,
-                 "kernel_2" => k2,
-                 "bias_2" => b2,
-                 "kernel_3" => k3,
-                 "bias_3" => b3
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1,
+                   "bias_1" => b1,
+                   "kernel_2" => k2,
+                   "bias_2" => b2,
+                   "kernel_3" => k3,
+                   "bias_3" => b3
+                 }
                }
              } = init_fn.()
 
@@ -1722,8 +1825,11 @@ defmodule CompilerTest do
 
       assert {init_fn, _} = Axon.compile(model)
 
-      assert %{"conv" => %{"kernel_1" => _, "kernel_2" => _, "kernel_3" => _} = conv_params} =
-               init_fn.()
+      assert %{
+               "parameters" => %{
+                 "conv" => %{"kernel_1" => _, "kernel_2" => _, "kernel_3" => _} = conv_params
+               }
+             } = init_fn.()
 
       assert Map.has_key?(conv_params, "bias_1") == false
       assert Map.has_key?(conv_params, "bias_2") == false
@@ -1738,8 +1844,11 @@ defmodule CompilerTest do
 
       assert {init_fn, predict_fn} = Axon.compile(model)
 
-      assert %{"conv" => %{"kernel_1" => k1, "kernel_2" => k2, "kernel_3" => k3}} =
-               params = init_fn.()
+      assert %{
+               "parameters" => %{
+                 "conv" => %{"kernel_1" => k1, "kernel_2" => k2, "kernel_3" => k3}
+               }
+             } = params = init_fn.()
 
       assert predict_fn.(params, input) ==
                Axon.Layers.separable_conv3d(
@@ -1762,13 +1871,15 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model)
 
       assert %{
-               "conv" => %{
-                 "kernel_1" => k1,
-                 "kernel_2" => k2,
-                 "kernel_3" => k3,
-                 "bias_1" => b1,
-                 "bias_2" => b2,
-                 "bias_3" => b3
+               "parameters" => %{
+                 "conv" => %{
+                   "kernel_1" => k1,
+                   "kernel_2" => k2,
+                   "kernel_3" => k3,
+                   "bias_1" => b1,
+                   "bias_2" => b2,
+                   "bias_3" => b3
+                 }
                }
              } = params = init_fn.()
 
@@ -1777,7 +1888,7 @@ defmodule CompilerTest do
     end
   end
 
-  @normalization_layers [:batch_norm, :layer_norm, :instance_norm]
+  @normalization_layers [:layer_norm, :instance_norm]
 
   describe "normalization" do
     test "initializes in default case" do
@@ -1786,7 +1897,7 @@ defmodule CompilerTest do
           model1 = apply(Axon, norm, [Axon.input({nil, 2}), [name: "norm"]])
 
           assert {init_fn, _predict_fn} = Axon.compile(model1)
-          assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = init_fn.()
+          assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} = init_fn.()
           assert Nx.shape(gamma) == {2}
           assert Nx.type(gamma) == {:f, 32}
           assert Nx.shape(beta) == {2}
@@ -1796,7 +1907,7 @@ defmodule CompilerTest do
         model2 = apply(Axon, norm, [Axon.input({nil, 3, 2, 2}), [name: "norm"]])
 
         assert {init_fn, _predict_fn} = Axon.compile(model2)
-        assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = init_fn.()
+        assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} = init_fn.()
         assert Nx.shape(gamma) == {3}
         assert Nx.type(gamma) == {:f, 32}
         assert Nx.shape(beta) == {3}
@@ -1811,7 +1922,7 @@ defmodule CompilerTest do
             apply(Axon, norm, [Axon.input({nil, 2}), [name: "norm", gamma_initializer: :zeros]])
 
           assert {init_fn, _predict_fn} = Axon.compile(model1)
-          assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = init_fn.()
+          assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} = init_fn.()
           assert gamma == Axon.Initializers.zeros(shape: {2})
           assert Nx.shape(beta) == {2}
           assert Nx.type(beta) == {:f, 32}
@@ -1824,7 +1935,7 @@ defmodule CompilerTest do
           ])
 
         assert {init_fn, _predict_fn} = Axon.compile(model2)
-        assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = init_fn.()
+        assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} = init_fn.()
         assert Nx.shape(gamma) == {3}
         assert Nx.type(gamma) == {:f, 32}
         assert beta == Axon.Initializers.zeros(shape: {3})
@@ -1838,7 +1949,10 @@ defmodule CompilerTest do
           input1 = Nx.random_uniform({1, 2}, type: {:f, 32})
 
           assert {init_fn, predict_fn} = Axon.compile(model1)
-          assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = params = init_fn.()
+
+          assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} =
+                   params = init_fn.()
+
           assert predict_fn.(params, input1) == apply(Axon.Layers, norm, [input1, gamma, beta])
         end
 
@@ -1846,7 +1960,10 @@ defmodule CompilerTest do
         input2 = Nx.random_uniform({1, 3, 2, 2}, type: {:f, 32})
 
         assert {init_fn, predict_fn} = Axon.compile(model2)
-        assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = params = init_fn.()
+
+        assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} =
+                 params = init_fn.()
+
         assert predict_fn.(params, input2) == apply(Axon.Layers, norm, [input2, gamma, beta])
       end
     end
@@ -1859,7 +1976,9 @@ defmodule CompilerTest do
           input1 = Nx.random_uniform({1, 2}, type: {:f, 32})
 
           assert {init_fn, predict_fn} = Axon.compile(model1)
-          assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = params = init_fn.()
+
+          assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} =
+                   params = init_fn.()
 
           assert predict_fn.(params, input1) ==
                    apply(Axon.Layers, norm, [input1, gamma, beta, opts1])
@@ -1870,7 +1989,9 @@ defmodule CompilerTest do
         input2 = Nx.random_uniform({1, 2, 2, 3}, type: {:f, 32})
 
         assert {init_fn, predict_fn} = Axon.compile(model2)
-        assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = params = init_fn.()
+
+        assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} =
+                 params = init_fn.()
 
         assert predict_fn.(params, input2) ==
                  apply(Axon.Layers, norm, [input2, gamma, beta, opts2])
@@ -1889,7 +2010,7 @@ defmodule CompilerTest do
           Nx.Defn.grad(params, &Nx.mean(predict_fn.(&1, input)))
         end
 
-        assert %{"norm" => %{"gamma" => gamma_grad, "beta" => beta_grad}} =
+        assert %{"parameters" => %{"norm" => %{"gamma" => gamma_grad, "beta" => beta_grad}}} =
                  Nx.Defn.jit(backward, [init_fn.(), Nx.random_uniform({1, 1, 2})])
 
         assert gamma_grad == Nx.broadcast(0.0, {1})
@@ -1904,7 +2025,7 @@ defmodule CompilerTest do
         mp_model = AMP.apply_policy(model, policy)
 
         assert {init_fn, _} = Axon.compile(mp_model)
-        assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = init_fn.()
+        assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} = init_fn.()
         assert Nx.type(gamma) == {:bf, 16}
         assert Nx.type(beta) == {:bf, 16}
       end
@@ -1927,7 +2048,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 3}) |> Axon.group_norm(3, name: "norm")
 
       assert {init_fn, _predict_fn} = Axon.compile(model)
-      assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = init_fn.()
+      assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} = init_fn.()
       assert Nx.shape(gamma) == {3}
       assert Nx.type(gamma) == {:f, 32}
       assert Nx.shape(beta) == {3}
@@ -1938,7 +2059,7 @@ defmodule CompilerTest do
       model1 = Axon.input({nil, 3}) |> Axon.group_norm(3, name: "norm", gamma_initializer: :zeros)
 
       assert {init_fn, _predict_fn} = Axon.compile(model1)
-      assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = init_fn.()
+      assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} = init_fn.()
       assert gamma == Axon.Initializers.zeros(shape: {3})
       assert Nx.shape(beta) == {3}
       assert Nx.type(beta) == {:f, 32}
@@ -1947,7 +2068,7 @@ defmodule CompilerTest do
         Axon.input({nil, 3, 3}) |> Axon.group_norm(3, name: "norm", beta_initializer: :zeros)
 
       assert {init_fn, _predict_fn} = Axon.compile(model2)
-      assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = init_fn.()
+      assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} = init_fn.()
       assert beta == Axon.Initializers.zeros(shape: {3})
       assert Nx.shape(gamma) == {3}
       assert Nx.type(gamma) == {:f, 32}
@@ -1958,7 +2079,9 @@ defmodule CompilerTest do
       input1 = Nx.random_uniform({1, 2})
 
       assert {init_fn, predict_fn} = Axon.compile(model1)
-      assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = params = init_fn.()
+
+      assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} =
+               params = init_fn.()
 
       assert predict_fn.(params, input1) ==
                Axon.Layers.group_norm(input1, gamma, beta, group_size: 2)
@@ -1967,7 +2090,9 @@ defmodule CompilerTest do
       input2 = Nx.random_uniform({1, 3, 2, 2})
 
       assert {init_fn, predict_fn} = Axon.compile(model2)
-      assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = params = init_fn.()
+
+      assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} =
+               params = init_fn.()
 
       assert predict_fn.(params, input2) ==
                Axon.Layers.group_norm(input2, gamma, beta, group_size: 3)
@@ -1979,7 +2104,9 @@ defmodule CompilerTest do
       input = Nx.random_uniform({1, 2, 2, 3})
 
       assert {init_fn, predict_fn} = Axon.compile(model)
-      assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = params = init_fn.()
+
+      assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} =
+               params = init_fn.()
 
       assert predict_fn.(params, input) ==
                Axon.Layers.group_norm(input, gamma, beta, [group_size: 3] ++ opts)
@@ -1997,7 +2124,7 @@ defmodule CompilerTest do
         Nx.Defn.grad(params, &Nx.mean(predict_fn.(&1, input)))
       end
 
-      assert %{"norm" => %{"gamma" => gamma_grad, "beta" => beta_grad}} =
+      assert %{"parameters" => %{"norm" => %{"gamma" => gamma_grad, "beta" => beta_grad}}} =
                Nx.Defn.jit(backward, [init_fn.(), Nx.random_uniform({1, 2})])
 
       assert gamma_grad == Nx.broadcast(0.0, {2})
@@ -2010,7 +2137,7 @@ defmodule CompilerTest do
       mp_model = AMP.apply_policy(model, policy)
 
       assert {init_fn, _} = Axon.compile(mp_model)
-      assert %{"norm" => %{"gamma" => gamma, "beta" => beta}} = init_fn.()
+      assert %{"parameters" => %{"norm" => %{"gamma" => gamma, "beta" => beta}}} = init_fn.()
       assert Nx.type(gamma) == {:bf, 16}
       assert Nx.type(beta) == {:bf, 16}
     end
@@ -2030,7 +2157,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 32}) |> Axon.flatten()
 
       assert {init_fn, _predict_fn} = Axon.compile(model)
-      assert %{} = init_fn.()
+      assert %{"parameters" => %{}} = init_fn.()
     end
 
     test "computes forward pass with default options" do
@@ -2062,7 +2189,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 3, 32}) |> Axon.transpose([1, 0])
 
       assert {init_fn, _predict_fn} = Axon.compile(model)
-      assert %{} = init_fn.()
+      assert %{"parameters" => %{}} = init_fn.()
     end
 
     test "computes forward pass with default options" do
@@ -2101,7 +2228,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 1, 32}) |> Axon.reshape({16, 2})
 
       assert {init_fn, _predict_fn} = Axon.compile(model)
-      assert %{} = init_fn.()
+      assert %{"parameters" => %{}} = init_fn.()
     end
 
     test "computes forward pass with default options" do
@@ -2140,7 +2267,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 1, 3, 3}) |> Axon.resize({4, 4})
 
       assert {init_fn, _predict_fn} = Axon.compile(model)
-      assert %{} = init_fn.()
+      assert %{"parameters" => %{}} = init_fn.()
     end
 
     test "computes forward pass with default options" do
@@ -2168,19 +2295,21 @@ defmodule CompilerTest do
       assert {init_fn, _predict_fn} = Axon.compile(model)
 
       assert %{
-               "lstm" => %{
-                 "wii" => wii,
-                 "wif" => wif,
-                 "wig" => wig,
-                 "wio" => wio,
-                 "whi" => whi,
-                 "whf" => whf,
-                 "whg" => whg,
-                 "who" => who,
-                 "bi" => bi,
-                 "bf" => bf,
-                 "bg" => bg,
-                 "bo" => bo
+               "parameters" => %{
+                 "lstm" => %{
+                   "wii" => wii,
+                   "wif" => wif,
+                   "wig" => wig,
+                   "wio" => wio,
+                   "whi" => whi,
+                   "whf" => whf,
+                   "whg" => whg,
+                   "who" => who,
+                   "bi" => bi,
+                   "bf" => bf,
+                   "bg" => bg,
+                   "bo" => bo
+                 }
                }
              } = init_fn.()
 
@@ -2222,19 +2351,21 @@ defmodule CompilerTest do
       assert {init_fn, _predict_fn} = Axon.compile(model1)
 
       assert %{
-               "lstm" => %{
-                 "wii" => wii,
-                 "wif" => wif,
-                 "wig" => wig,
-                 "wio" => wio,
-                 "whi" => whi,
-                 "whf" => whf,
-                 "whg" => whg,
-                 "who" => who,
-                 "bi" => bi,
-                 "bf" => bf,
-                 "bg" => bg,
-                 "bo" => bo
+               "parameters" => %{
+                 "lstm" => %{
+                   "wii" => wii,
+                   "wif" => wif,
+                   "wig" => wig,
+                   "wio" => wio,
+                   "whi" => whi,
+                   "whf" => whf,
+                   "whg" => whg,
+                   "who" => who,
+                   "bi" => bi,
+                   "bf" => bf,
+                   "bg" => bg,
+                   "bo" => bo
+                 }
                }
              } = init_fn.()
 
@@ -2265,19 +2396,21 @@ defmodule CompilerTest do
       assert {init_fn, _predict_fn} = Axon.compile(model2)
 
       assert %{
-               "lstm" => %{
-                 "wii" => wii,
-                 "wif" => wif,
-                 "wig" => wig,
-                 "wio" => wio,
-                 "whi" => whi,
-                 "whf" => whf,
-                 "whg" => whg,
-                 "who" => who,
-                 "bi" => bi,
-                 "bf" => bf,
-                 "bg" => bg,
-                 "bo" => bo
+               "parameters" => %{
+                 "lstm" => %{
+                   "wii" => wii,
+                   "wif" => wif,
+                   "wig" => wig,
+                   "wio" => wio,
+                   "whi" => whi,
+                   "whf" => whf,
+                   "whg" => whg,
+                   "who" => who,
+                   "bi" => bi,
+                   "bf" => bf,
+                   "bg" => bg,
+                   "bo" => bo
+                 }
                }
              } = init_fn.()
 
@@ -2318,19 +2451,21 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model)
 
       assert %{
-               "lstm" => %{
-                 "wii" => wii,
-                 "wif" => wif,
-                 "wig" => wig,
-                 "wio" => wio,
-                 "whi" => whi,
-                 "whf" => whf,
-                 "whg" => whg,
-                 "who" => who,
-                 "bi" => bi,
-                 "bf" => bf,
-                 "bg" => bg,
-                 "bo" => bo
+               "parameters" => %{
+                 "lstm" => %{
+                   "wii" => wii,
+                   "wif" => wif,
+                   "wig" => wig,
+                   "wio" => wio,
+                   "whi" => whi,
+                   "whf" => whf,
+                   "whg" => whg,
+                   "who" => who,
+                   "bi" => bi,
+                   "bf" => bf,
+                   "bg" => bg,
+                   "bo" => bo
+                 }
                }
              } = params = init_fn.()
 
@@ -2381,19 +2516,21 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model1)
 
       assert %{
-               "lstm" => %{
-                 "wii" => wii,
-                 "wif" => wif,
-                 "wig" => wig,
-                 "wio" => wio,
-                 "whi" => whi,
-                 "whf" => whf,
-                 "whg" => whg,
-                 "who" => who,
-                 "bi" => bi,
-                 "bf" => bf,
-                 "bg" => bg,
-                 "bo" => bo
+               "parameters" => %{
+                 "lstm" => %{
+                   "wii" => wii,
+                   "wif" => wif,
+                   "wig" => wig,
+                   "wio" => wio,
+                   "whi" => whi,
+                   "whf" => whf,
+                   "whg" => whg,
+                   "who" => who,
+                   "bi" => bi,
+                   "bf" => bf,
+                   "bg" => bg,
+                   "bo" => bo
+                 }
                }
              } = params = init_fn.()
 
@@ -2418,19 +2555,21 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model2)
 
       assert %{
-               "lstm" => %{
-                 "wii" => wii,
-                 "wif" => wif,
-                 "wig" => wig,
-                 "wio" => wio,
-                 "whi" => whi,
-                 "whf" => whf,
-                 "whg" => whg,
-                 "who" => who,
-                 "bi" => bi,
-                 "bf" => bf,
-                 "bg" => bg,
-                 "bo" => bo
+               "parameters" => %{
+                 "lstm" => %{
+                   "wii" => wii,
+                   "wif" => wif,
+                   "wig" => wig,
+                   "wio" => wio,
+                   "whi" => whi,
+                   "whf" => whf,
+                   "whg" => whg,
+                   "who" => who,
+                   "bi" => bi,
+                   "bf" => bf,
+                   "bg" => bg,
+                   "bo" => bo
+                 }
                }
              } = params = init_fn.()
 
@@ -2470,33 +2609,35 @@ defmodule CompilerTest do
       end
 
       assert %{
-               "encode" => %{
-                 "wii" => eii,
-                 "wif" => eif,
-                 "wig" => eig,
-                 "wio" => eio,
-                 "whi" => ehi,
-                 "whf" => ehf,
-                 "whg" => ehg,
-                 "who" => eho,
-                 "bi" => ebi,
-                 "bf" => ebf,
-                 "bg" => ebg,
-                 "bo" => ebo
-               },
-               "decode" => %{
-                 "wii" => dii,
-                 "wif" => dif,
-                 "wig" => dig,
-                 "wio" => dio,
-                 "whi" => dhi,
-                 "whf" => dhf,
-                 "whg" => dhg,
-                 "who" => dho,
-                 "bi" => dbi,
-                 "bf" => dbf,
-                 "bg" => dbg,
-                 "bo" => dbo
+               "parameters" => %{
+                 "encode" => %{
+                   "wii" => eii,
+                   "wif" => eif,
+                   "wig" => eig,
+                   "wio" => eio,
+                   "whi" => ehi,
+                   "whf" => ehf,
+                   "whg" => ehg,
+                   "who" => eho,
+                   "bi" => ebi,
+                   "bf" => ebf,
+                   "bg" => ebg,
+                   "bo" => ebo
+                 },
+                 "decode" => %{
+                   "wii" => dii,
+                   "wif" => dif,
+                   "wig" => dig,
+                   "wio" => dio,
+                   "whi" => dhi,
+                   "whf" => dhf,
+                   "whg" => dhg,
+                   "who" => dho,
+                   "bi" => dbi,
+                   "bf" => dbf,
+                   "bg" => dbg,
+                   "bo" => dbo
+                 }
                }
              } = params = init_fn.()
 
@@ -2521,19 +2662,21 @@ defmodule CompilerTest do
       end
 
       assert %{
-               "lstm" => %{
-                 "wii" => wii_grad,
-                 "wif" => wif_grad,
-                 "wig" => wig_grad,
-                 "wio" => wio_grad,
-                 "whi" => whi_grad,
-                 "whf" => whf_grad,
-                 "whg" => whg_grad,
-                 "who" => who_grad,
-                 "bi" => bi_grad,
-                 "bf" => bf_grad,
-                 "bg" => bg_grad,
-                 "bo" => bo_grad
+               "parameters" => %{
+                 "lstm" => %{
+                   "wii" => wii_grad,
+                   "wif" => wif_grad,
+                   "wig" => wig_grad,
+                   "wio" => wio_grad,
+                   "whi" => whi_grad,
+                   "whf" => whf_grad,
+                   "whg" => whg_grad,
+                   "who" => who_grad,
+                   "bi" => bi_grad,
+                   "bf" => bf_grad,
+                   "bg" => bg_grad,
+                   "bo" => bo_grad
+                 }
                }
              } = Nx.Defn.jit(backward, [init_fn.(), Nx.random_uniform({1, 2, 1})])
 
@@ -2557,17 +2700,19 @@ defmodule CompilerTest do
       assert {init_fn, _} = Axon.compile(model)
 
       assert %{
-               "lstm" =>
-                 %{
-                   "wii" => _,
-                   "wif" => _,
-                   "wig" => _,
-                   "wio" => _,
-                   "whi" => _,
-                   "whf" => _,
-                   "whg" => _,
-                   "who" => _
-                 } = lstm_params
+               "parameters" => %{
+                 "lstm" =>
+                   %{
+                     "wii" => _,
+                     "wif" => _,
+                     "wig" => _,
+                     "wio" => _,
+                     "whi" => _,
+                     "whf" => _,
+                     "whg" => _,
+                     "who" => _
+                   } = lstm_params
+               }
              } = init_fn.()
 
       assert Map.has_key?(lstm_params, "bi") == false
@@ -2586,15 +2731,17 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model)
 
       assert %{
-               "lstm" => %{
-                 "wii" => wii,
-                 "wif" => wif,
-                 "wig" => wig,
-                 "wio" => wio,
-                 "whi" => whi,
-                 "whf" => whf,
-                 "whg" => whg,
-                 "who" => who
+               "parameters" => %{
+                 "lstm" => %{
+                   "wii" => wii,
+                   "wif" => wif,
+                   "wig" => wig,
+                   "wio" => wio,
+                   "whi" => whi,
+                   "whf" => whf,
+                   "whg" => whg,
+                   "who" => who
+                 }
                }
              } = params = init_fn.()
 
@@ -2631,10 +2778,12 @@ defmodule CompilerTest do
       assert {init_fn, _predict_fn} = Axon.compile(model)
 
       assert %{
-               "convlstm" => %{
-                 "wi" => wi,
-                 "wh" => wh,
-                 "b" => b
+               "parameters" => %{
+                 "convlstm" => %{
+                   "wi" => wi,
+                   "wh" => wh,
+                   "b" => b
+                 }
                }
              } = init_fn.()
 
@@ -2669,10 +2818,12 @@ defmodule CompilerTest do
       assert {init_fn, _predict_fn} = Axon.compile(model1)
 
       assert %{
-               "convlstm" => %{
-                 "wi" => wi,
-                 "wh" => wh,
-                 "b" => b
+               "parameters" => %{
+                 "convlstm" => %{
+                   "wi" => wi,
+                   "wh" => wh,
+                   "b" => b
+                 }
                }
              } = init_fn.()
 
@@ -2693,10 +2844,12 @@ defmodule CompilerTest do
       assert {init_fn, _predict_fn} = Axon.compile(model2)
 
       assert %{
-               "convlstm" => %{
-                 "wi" => wi,
-                 "wh" => wh,
-                 "b" => b
+               "parameters" => %{
+                 "convlstm" => %{
+                   "wi" => wi,
+                   "wh" => wh,
+                   "b" => b
+                 }
                }
              } = init_fn.()
 
@@ -2741,10 +2894,12 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model)
 
       assert %{
-               "convlstm" => %{
-                 "wi" => wi,
-                 "wh" => wh,
-                 "b" => b
+               "parameters" => %{
+                 "convlstm" => %{
+                   "wi" => wi,
+                   "wh" => wh,
+                   "b" => b
+                 }
                }
              } = params = init_fn.()
 
@@ -2798,10 +2953,12 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model)
 
       assert %{
-               "convlstm" => %{
-                 "wi" => wi,
-                 "wh" => wh,
-                 "b" => b
+               "parameters" => %{
+                 "convlstm" => %{
+                   "wi" => wi,
+                   "wh" => wh,
+                   "b" => b
+                 }
                }
              } = params = init_fn.()
 
@@ -2870,10 +3027,12 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model1)
 
       assert %{
-               "convlstm" => %{
-                 "wi" => wi,
-                 "wh" => wh,
-                 "b" => b
+               "parameters" => %{
+                 "convlstm" => %{
+                   "wi" => wi,
+                   "wh" => wh,
+                   "b" => b
+                 }
                }
              } = params = init_fn.()
 
@@ -2906,10 +3065,12 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model2)
 
       assert %{
-               "convlstm" => %{
-                 "wi" => wi,
-                 "wh" => wh,
-                 "b" => b
+               "parameters" => %{
+                 "convlstm" => %{
+                   "wi" => wi,
+                   "wh" => wh,
+                   "b" => b
+                 }
                }
              } = params = init_fn.()
 
@@ -2969,15 +3130,17 @@ defmodule CompilerTest do
       end
 
       assert %{
-               "encode" => %{
-                 "wi" => ei,
-                 "wh" => eh,
-                 "b" => eb
-               },
-               "decode" => %{
-                 "wi" => di,
-                 "wh" => dh,
-                 "b" => db
+               "parameters" => %{
+                 "encode" => %{
+                   "wi" => ei,
+                   "wh" => eh,
+                   "b" => eb
+                 },
+                 "decode" => %{
+                   "wi" => di,
+                   "wh" => dh,
+                   "b" => db
+                 }
                }
              } = params = init_fn.()
 
@@ -3017,10 +3180,12 @@ defmodule CompilerTest do
       end
 
       assert %{
-               "convlstm" => %{
-                 "wi" => wi_grad,
-                 "wh" => wh_grad,
-                 "b" => b_grad
+               "parameters" => %{
+                 "convlstm" => %{
+                   "wi" => wi_grad,
+                   "wh" => wh_grad,
+                   "b" => b_grad
+                 }
                }
              } = Nx.Defn.jit(backward, [init_fn.(), input])
 
@@ -3058,9 +3223,11 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model)
 
       assert %{
-               "convlstm" => %{
-                 "wi" => wi,
-                 "wh" => wh
+               "parameters" => %{
+                 "convlstm" => %{
+                   "wi" => wi,
+                   "wh" => wh
+                 }
                }
              } = params = init_fn.()
 
@@ -3084,17 +3251,19 @@ defmodule CompilerTest do
       assert {init_fn, _} = Axon.compile(model)
 
       assert %{
-               "gru" => %{
-                 "wir" => wir,
-                 "wiz" => wiz,
-                 "win" => win,
-                 "whr" => whr,
-                 "whz" => whz,
-                 "whn" => whn,
-                 "br" => br,
-                 "bz" => bz,
-                 "bhn" => bhn,
-                 "bin" => bin
+               "parameters" => %{
+                 "gru" => %{
+                   "wir" => wir,
+                   "wiz" => wiz,
+                   "win" => win,
+                   "whr" => whr,
+                   "whz" => whz,
+                   "whn" => whn,
+                   "br" => br,
+                   "bz" => bz,
+                   "bhn" => bhn,
+                   "bin" => bin
+                 }
                }
              } = init_fn.()
 
@@ -3126,17 +3295,19 @@ defmodule CompilerTest do
       assert {init_fn, _} = Axon.compile(model1)
 
       assert %{
-               "gru" => %{
-                 "wir" => wir,
-                 "wiz" => wiz,
-                 "win" => win,
-                 "whr" => whr,
-                 "whz" => whz,
-                 "whn" => whn,
-                 "br" => br,
-                 "bz" => bz,
-                 "bhn" => bhn,
-                 "bin" => bin
+               "parameters" => %{
+                 "gru" => %{
+                   "wir" => wir,
+                   "wiz" => wiz,
+                   "win" => win,
+                   "whr" => whr,
+                   "whz" => whz,
+                   "whn" => whn,
+                   "br" => br,
+                   "bz" => bz,
+                   "bhn" => bhn,
+                   "bin" => bin
+                 }
                }
              } = init_fn.()
 
@@ -3160,17 +3331,19 @@ defmodule CompilerTest do
       assert {init_fn, _} = Axon.compile(model2)
 
       assert %{
-               "gru" => %{
-                 "wir" => wir,
-                 "wiz" => wiz,
-                 "win" => win,
-                 "whr" => whr,
-                 "whz" => whz,
-                 "whn" => whn,
-                 "br" => br,
-                 "bz" => bz,
-                 "bhn" => bhn,
-                 "bin" => bin
+               "parameters" => %{
+                 "gru" => %{
+                   "wir" => wir,
+                   "wiz" => wiz,
+                   "win" => win,
+                   "whr" => whr,
+                   "whz" => whz,
+                   "whn" => whn,
+                   "br" => br,
+                   "bz" => bz,
+                   "bhn" => bhn,
+                   "bin" => bin
+                 }
                }
              } = init_fn.()
 
@@ -3200,17 +3373,19 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model)
 
       assert %{
-               "gru" => %{
-                 "wir" => wir,
-                 "wiz" => wiz,
-                 "win" => win,
-                 "whr" => whr,
-                 "whz" => whz,
-                 "whn" => whn,
-                 "br" => br,
-                 "bz" => bz,
-                 "bhn" => bhn,
-                 "bin" => bin
+               "parameters" => %{
+                 "gru" => %{
+                   "wir" => wir,
+                   "wiz" => wiz,
+                   "win" => win,
+                   "whr" => whr,
+                   "whz" => whz,
+                   "whn" => whn,
+                   "br" => br,
+                   "bz" => bz,
+                   "bhn" => bhn,
+                   "bin" => bin
+                 }
                }
              } = params = init_fn.()
 
@@ -3250,17 +3425,19 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model1)
 
       assert %{
-               "gru" => %{
-                 "wir" => wir,
-                 "wiz" => wiz,
-                 "win" => win,
-                 "whr" => whr,
-                 "whz" => whz,
-                 "whn" => whn,
-                 "br" => br,
-                 "bz" => bz,
-                 "bhn" => bhn,
-                 "bin" => bin
+               "parameters" => %{
+                 "gru" => %{
+                   "wir" => wir,
+                   "wiz" => wiz,
+                   "win" => win,
+                   "whr" => whr,
+                   "whz" => whz,
+                   "whn" => whn,
+                   "br" => br,
+                   "bz" => bz,
+                   "bhn" => bhn,
+                   "bin" => bin
+                 }
                }
              } = params = init_fn.()
 
@@ -3281,17 +3458,19 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model2)
 
       assert %{
-               "gru" => %{
-                 "wir" => wir,
-                 "wiz" => wiz,
-                 "win" => win,
-                 "whr" => whr,
-                 "whz" => whz,
-                 "whn" => whn,
-                 "br" => br,
-                 "bz" => bz,
-                 "bhn" => bhn,
-                 "bin" => bin
+               "parameters" => %{
+                 "gru" => %{
+                   "wir" => wir,
+                   "wiz" => wiz,
+                   "win" => win,
+                   "whr" => whr,
+                   "whz" => whz,
+                   "whn" => whn,
+                   "br" => br,
+                   "bz" => bz,
+                   "bhn" => bhn,
+                   "bin" => bin
+                 }
                }
              } = params = init_fn.()
 
@@ -3323,29 +3502,31 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model)
 
       assert %{
-               "encode" => %{
-                 "wir" => eir,
-                 "wiz" => eiz,
-                 "win" => ein,
-                 "whr" => ehr,
-                 "whz" => ehz,
-                 "whn" => ehn,
-                 "br" => ebr,
-                 "bz" => ebz,
-                 "bhn" => ebhn,
-                 "bin" => ebin
-               },
-               "decode" => %{
-                 "wir" => dir,
-                 "wiz" => diz,
-                 "win" => din,
-                 "whr" => dhr,
-                 "whz" => dhz,
-                 "whn" => dhn,
-                 "br" => dbr,
-                 "bz" => dbz,
-                 "bhn" => dbhn,
-                 "bin" => dbin
+               "parameters" => %{
+                 "encode" => %{
+                   "wir" => eir,
+                   "wiz" => eiz,
+                   "win" => ein,
+                   "whr" => ehr,
+                   "whz" => ehz,
+                   "whn" => ehn,
+                   "br" => ebr,
+                   "bz" => ebz,
+                   "bhn" => ebhn,
+                   "bin" => ebin
+                 },
+                 "decode" => %{
+                   "wir" => dir,
+                   "wiz" => diz,
+                   "win" => din,
+                   "whr" => dhr,
+                   "whz" => dhz,
+                   "whn" => dhn,
+                   "br" => dbr,
+                   "bz" => dbz,
+                   "bhn" => dbhn,
+                   "bin" => dbin
+                 }
                }
              } = params = init_fn.()
 
@@ -3361,15 +3542,17 @@ defmodule CompilerTest do
       assert {init_fn, _} = Axon.compile(model)
 
       assert %{
-               "gru" =>
-                 %{
-                   "wir" => _,
-                   "wiz" => _,
-                   "win" => _,
-                   "whr" => _,
-                   "whz" => _,
-                   "whn" => _
-                 } = gru_params
+               "parameters" => %{
+                 "gru" =>
+                   %{
+                     "wir" => _,
+                     "wiz" => _,
+                     "win" => _,
+                     "whr" => _,
+                     "whz" => _,
+                     "whn" => _
+                   } = gru_params
+               }
              } = init_fn.()
 
       assert Map.has_key?(gru_params, "br") == false
@@ -3387,13 +3570,15 @@ defmodule CompilerTest do
       assert {init_fn, predict_fn} = Axon.compile(model)
 
       assert %{
-               "gru" => %{
-                 "wir" => wir,
-                 "wiz" => wiz,
-                 "win" => win,
-                 "whr" => whr,
-                 "whz" => whz,
-                 "whn" => whn
+               "parameters" => %{
+                 "gru" => %{
+                   "wir" => wir,
+                   "wiz" => wiz,
+                   "win" => win,
+                   "whr" => whr,
+                   "whz" => whz,
+                   "whn" => whn
+                 }
                }
              } = params = init_fn.()
 
@@ -3429,7 +3614,7 @@ defmodule CompilerTest do
       for op <- @binary_layers do
         model = apply(Axon, op, [Axon.input({nil, 32}), Axon.input({nil, 32})])
         assert {init_fn, _} = Axon.compile(model)
-        assert %{} == init_fn.()
+        assert %{"parameters" => %{}, "variables" => %{}} == init_fn.()
       end
     end
 
@@ -3489,7 +3674,7 @@ defmodule CompilerTest do
     test "initializes with no params" do
       model = Axon.concatenate(Axon.input({nil, 32}), Axon.input({nil, 32}))
       assert {init_fn, _} = Axon.compile(model)
-      assert %{} == init_fn.()
+      assert %{"parameters" => %{}, "variables" => %{}} == init_fn.()
     end
 
     test "computes forward pass with default options" do
@@ -3542,7 +3727,7 @@ defmodule CompilerTest do
     test "initializes with no params" do
       model = Axon.input({nil, 3, 3}) |> Axon.pad([{1, 0}])
       assert {init_fn, _} = Axon.compile(model)
-      assert %{} == init_fn.()
+      assert %{"parameters" => %{}, "variables" => %{}} == init_fn.()
     end
 
     test "computes forward pass with default options" do
@@ -3607,7 +3792,7 @@ defmodule CompilerTest do
       model = Axon.cond(inp, cond_fn, on_true, on_false)
 
       assert {init_fn, _} = Axon.compile(model)
-      assert %{} == init_fn.()
+      assert %{"parameters" => %{}, "variables" => %{}} == init_fn.()
     end
 
     test "computes forward pass with default options" do
@@ -3661,7 +3846,7 @@ defmodule CompilerTest do
       model = Axon.input({nil, 10}) |> Axon.split(5)
 
       assert {init_fn, _} = Axon.compile(model)
-      assert init_fn.() == %{}
+      assert init_fn.() == %{"parameters" => %{}, "variables" => %{}}
     end
 
     test "computes forward pass with default options" do

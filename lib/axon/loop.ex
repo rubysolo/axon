@@ -1235,12 +1235,18 @@ defmodule Axon.Loop do
        when is_atom(optimizer) and optimizer in @valid_axon_optimizers do
     # TODO(seanmor5): Fall back to optimizer defaults rather
     # than this global default.
-    apply(Axon.Optimizers, optimizer, [1.0e-2])
+    Axon.Updates.multi_transform(%{
+      "parameters" => apply(Axon.Optimizers, optimizer, [1.0e-2]),
+      "variables" => Axon.Updates.identity()
+    })
   end
 
   defp build_optimizer_fns({init_optimizer_fn, update_optimizer_fn})
        when is_function(init_optimizer_fn, 1) and is_function(update_optimizer_fn, 3) do
-    {init_optimizer_fn, update_optimizer_fn}
+    Axon.Updates.multi_transform(%{
+      "parameters" => {init_optimizer_fn, update_optimizer_fn},
+      "variables" => Axon.Updates.identity()
+    })
   end
 
   defp build_optimizer_fns(invalid) do

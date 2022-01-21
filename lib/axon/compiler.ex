@@ -42,10 +42,21 @@ defmodule Axon.Compiler do
     init_fn = fn ->
       graph
       |> Tuple.to_list()
-      |> Enum.reduce(%{}, &to_init_fun/2)
-      |> Map.new(fn {k, v} ->
-        v = Map.new(v, fn {k_sub, v_sub} -> {k_sub, v_sub.()} end)
-        {k, v}
+      |> Enum.reduce({%{}, %{}}, &to_init_fun/2)
+      |> then(fn {params, vars} ->
+        params =
+          Map.new(params, fn {k, v} ->
+            v = Map.new(v, fn {k_sub, v_sub} -> {k_sub, v_sub.()} end)
+            {k, v}
+          end)
+
+        vars =
+          Map.new(vars, fn {k, v} ->
+            v = Map.new(v, fn {k_sub, v_sub} -> {k_sub, v_sub.()} end)
+            {k, v}
+          end)
+
+        %{"parameters" => params, "variables" => vars}
       end)
     end
 
@@ -55,10 +66,21 @@ defmodule Axon.Compiler do
   defp compile_init(%Axon{} = graph) do
     fn ->
       graph
-      |> to_init_fun(%{})
-      |> Map.new(fn {k, v} ->
-        v = Map.new(v, fn {k_sub, v_sub} -> {k_sub, v_sub.()} end)
-        {k, v}
+      |> to_init_fun({%{}, %{}})
+      |> then(fn {params, vars} ->
+        params =
+          Map.new(params, fn {k, v} ->
+            v = Map.new(v, fn {k_sub, v_sub} -> {k_sub, v_sub.()} end)
+            {k, v}
+          end)
+
+        vars =
+          Map.new(vars, fn {k, v} ->
+            v = Map.new(v, fn {k_sub, v_sub} -> {k_sub, v_sub.()} end)
+            {k, v}
+          end)
+
+        %{"parameters" => params, "variables" => vars}
       end)
     end
   end
@@ -70,12 +92,18 @@ defmodule Axon.Compiler do
   end
 
   defp to_init_fun(
-         %Axon{parent: parents, name: name, params: params, policy: %{params: dtype}},
-         cache
+         %Axon{
+           parent: parents,
+           name: name,
+           params: params,
+           variables: variables,
+           policy: %{params: dtype}
+         },
+         {old_layer_params, old_layer_variables} = cache
        )
        when is_list(parents) do
     cache =
-      case cache do
+      case old_layer_params do
         %{^name => _} ->
           cache
 
@@ -87,19 +115,43 @@ defmodule Axon.Compiler do
               Map.put(layer_params, name, fun)
             end)
 
-          if Enum.empty?(layer_params) do
-            cache
-          else
-            Map.put(cache, name, layer_params)
-          end
+          layer_variables =
+            Enum.reduce(variables, %{}, fn {_, variable}, layer_variables ->
+              %{name: name, shape: shape, initializer: initializer} = variable
+              fun = fn -> apply(Axon.Initializers, initializer, [[type: dtype, shape: shape]]) end
+              Map.put(layer_variables, name, fun)
+            end)
+
+          updated_layer_params =
+            if Enum.empty?(layer_params) do
+              old_layer_params
+            else
+              Map.put(old_layer_params, name, layer_params)
+            end
+
+          updated_layer_variables =
+            if Enum.empty?(layer_variables) do
+              old_layer_variables
+            else
+              Map.put(old_layer_variables, name, layer_variables)
+            end
+
+          {updated_layer_params, updated_layer_variables}
       end
 
     Enum.reduce(parents, cache, &to_init_fun/2)
   end
 
   defp to_init_fun(
-         %Axon{parent: parent, name: name, params: params, opts: opts, policy: %{params: dtype}},
-         cache
+         %Axon{
+           parent: parent,
+           name: name,
+           params: params,
+           variables: variables,
+           opts: opts,
+           policy: %{params: dtype}
+         },
+         {old_layer_params, old_layer_variables} = cache
        ) do
     cache =
       case opts[:hidden_state] do
@@ -113,7 +165,7 @@ defmodule Axon.Compiler do
       end
 
     cache =
-      case cache do
+      case old_layer_params do
         %{^name => _} ->
           cache
 
@@ -125,11 +177,28 @@ defmodule Axon.Compiler do
               Map.put(layer_params, name, fun)
             end)
 
-          if Enum.empty?(layer_params) do
-            cache
-          else
-            Map.put(cache, name, layer_params)
-          end
+          layer_variables =
+            Enum.reduce(variables, %{}, fn {_, variable}, layer_variables ->
+              %{name: name, shape: shape, initializer: initializer} = variable
+              fun = fn -> apply(Axon.Initializers, initializer, [[type: dtype, shape: shape]]) end
+              Map.put(layer_variables, name, fun)
+            end)
+
+          updated_layer_params =
+            if Enum.empty?(layer_params) do
+              old_layer_params
+            else
+              Map.put(old_layer_params, name, layer_params)
+            end
+
+          updated_layer_variables =
+            if Enum.empty?(layer_variables) do
+              old_layer_variables
+            else
+              Map.put(old_layer_variables, name, layer_variables)
+            end
+
+          {updated_layer_params, updated_layer_variables}
       end
 
     if parent do
@@ -314,7 +383,7 @@ defmodule Axon.Compiler do
 
     inp_params =
       Map.new(layer_params, fn {k, %{name: v, frozen: frz}} ->
-        {k, maybe_freeze(params[name][v], frz)}
+        {k, maybe_freeze(params["parameters"][name][v], frz)}
       end)
 
     param_arg =
@@ -344,7 +413,7 @@ defmodule Axon.Compiler do
 
     inp_params =
       Map.new(layer_params, fn {k, %{name: v, frozen: frz}} ->
-        {k, maybe_freeze(params[name][v], frz)}
+        {k, maybe_freeze(params["parameters"][name][v], frz)}
       end)
 
     param_arg =
@@ -422,11 +491,11 @@ defmodule Axon.Compiler do
     {res, cache} = to_predict_fun(parent, cache, input_map, params, inputs, mode)
 
     input = Nx.as_type(res, compute)
-    w = layer_param(layer_params, "kernel", params[name], compute)
+    w = layer_param(layer_params, "kernel", params["parameters"][name], compute)
 
     b =
       if use_bias do
-        layer_param(layer_params, "bias", params[name], compute)
+        layer_param(layer_params, "bias", params["parameters"][name], compute)
       else
         Nx.tensor(0.0, type: compute)
       end
@@ -457,11 +526,11 @@ defmodule Axon.Compiler do
 
     input1 = Nx.as_type(res1, compute)
     input2 = Nx.as_type(res2, compute)
-    w = layer_param(layer_params, "kernel", params[name], compute)
+    w = layer_param(layer_params, "kernel", params["parameters"][name], compute)
 
     b =
       if use_bias do
-        layer_param(layer_params, "bias", params[name], compute)
+        layer_param(layer_params, "bias", params["parameters"][name], compute)
       else
         Nx.tensor(0.0, type: compute)
       end
@@ -490,7 +559,7 @@ defmodule Axon.Compiler do
        ) do
     {res, cache} = to_predict_fun(parent, cache, input_map, params, inputs, mode)
 
-    w = layer_param(layer_params, "kernel", params[name], compute)
+    w = layer_param(layer_params, "kernel", params["parameters"][name], compute)
     res = Nx.as_type(apply(Axon.Layers, :embedding, [res, w]), output)
 
     {res, Map.put(cache, id, res)}
@@ -587,11 +656,11 @@ defmodule Axon.Compiler do
     {use_bias, opts} = Keyword.pop!(opts, :use_bias)
 
     input = Nx.as_type(res, compute)
-    k = layer_param(layer_params, "kernel", params[name], compute)
+    k = layer_param(layer_params, "kernel", params["parameters"][name], compute)
 
     b =
       if use_bias do
-        layer_param(layer_params, "bias", params[name], compute)
+        layer_param(layer_params, "bias", params["parameters"][name], compute)
       else
         Nx.tensor(0, type: compute)
       end
@@ -622,13 +691,13 @@ defmodule Axon.Compiler do
     {use_bias, opts} = Keyword.pop!(opts, :use_bias)
 
     input = Nx.as_type(res, compute)
-    k1 = layer_param(layer_params, "k1", params[name], compute)
-    k2 = layer_param(layer_params, "k2", params[name], compute)
+    k1 = layer_param(layer_params, "k1", params["parameters"][name], compute)
+    k2 = layer_param(layer_params, "k2", params["parameters"][name], compute)
 
     {b1, b2} =
       if use_bias do
-        {layer_param(layer_params, "b1", params[name], compute),
-         layer_param(layer_params, "b2", params[name], compute)}
+        {layer_param(layer_params, "b1", params["parameters"][name], compute),
+         layer_param(layer_params, "b2", params["parameters"][name], compute)}
       else
         {Nx.tensor(0, type: compute), Nx.tensor(0, type: compute)}
       end
@@ -659,15 +728,15 @@ defmodule Axon.Compiler do
     {use_bias, opts} = Keyword.pop!(opts, :use_bias)
 
     input = Nx.as_type(res, compute)
-    k1 = layer_param(layer_params, "k1", params[name], compute)
-    k2 = layer_param(layer_params, "k2", params[name], compute)
-    k3 = layer_param(layer_params, "k3", params[name], compute)
+    k1 = layer_param(layer_params, "k1", params["parameters"][name], compute)
+    k2 = layer_param(layer_params, "k2", params["parameters"][name], compute)
+    k3 = layer_param(layer_params, "k3", params["parameters"][name], compute)
 
     {b1, b2, b3} =
       if use_bias do
-        {layer_param(layer_params, "b1", params[name], compute),
-         layer_param(layer_params, "b2", params[name], compute),
-         layer_param(layer_params, "b3", params[name], compute)}
+        {layer_param(layer_params, "b1", params["parameters"][name], compute),
+         layer_param(layer_params, "b2", params["parameters"][name], compute),
+         layer_param(layer_params, "b3", params["parameters"][name], compute)}
       else
         {Nx.tensor(0, type: compute), Nx.tensor(0, type: compute), Nx.tensor(0, type: compute)}
       end
@@ -688,27 +757,29 @@ defmodule Axon.Compiler do
            parent: parent,
            opts: opts,
            params: layer_params,
+           variables: layer_vars,
            policy: %{compute: compute, output: output}
          },
          cache,
          input_map,
          params,
          inputs,
-         :inference
+         mode
        ) do
-    {res, cache} = to_predict_fun(parent, cache, input_map, params, inputs, :inference)
+    {res, cache} = to_predict_fun(parent, cache, input_map, params, inputs, mode)
+    training = mode == :train
 
     input = Nx.as_type(res, compute)
-    g = layer_param(layer_params, "gamma", params[name], compute)
-    b = layer_param(layer_params, "beta", params[name], compute)
-    mean = layer_param(layer_params, "mean", params[name], compute)
-    var = layer_param(layer_params, "var", params[name], compute)
-    res = Nx.as_type(Axon.Layers.batch_norm(input, g, b, mean, var, opts), output)
+    g = layer_param(layer_params, "gamma", params["parameters"][name], compute)
+    b = layer_param(layer_params, "beta", params["parameters"][name], compute)
+    mean = layer_var(layer_vars, "mean", params["variables"][name], compute)
+    var = layer_var(layer_vars, "var", params["variables"][name], compute)
+    res = Nx.as_type(Axon.Layers.batch_norm(input, g, b, mean, var, opts ++ [training: training]), output)
 
     {res, Map.put(cache, id, res)}
   end
 
-  @normalization_layers [:batch_norm, :layer_norm, :group_norm, :instance_norm]
+  @normalization_layers [:layer_norm, :group_norm, :instance_norm]
 
   defp recur_predict_fun(
          %Axon{
@@ -730,8 +801,8 @@ defmodule Axon.Compiler do
     {res, cache} = to_predict_fun(parent, cache, input_map, params, inputs, mode)
 
     input = Nx.as_type(res, compute)
-    g = layer_param(layer_params, "gamma", params[name], compute)
-    b = layer_param(layer_params, "beta", params[name], compute)
+    g = layer_param(layer_params, "gamma", params["parameters"][name], compute)
+    b = layer_param(layer_params, "beta", params["parameters"][name], compute)
     res = Nx.as_type(apply(Axon.Layers, op, [input, g, b, opts]), output)
 
     {res, Map.put(cache, id, res)}
@@ -782,26 +853,26 @@ defmodule Axon.Compiler do
     input = Nx.as_type(res, compute)
 
     input_kernel = {
-      layer_param(layer_params, "wii", params[name], compute),
-      layer_param(layer_params, "wif", params[name], compute),
-      layer_param(layer_params, "wig", params[name], compute),
-      layer_param(layer_params, "wio", params[name], compute)
+      layer_param(layer_params, "wii", params["parameters"][name], compute),
+      layer_param(layer_params, "wif", params["parameters"][name], compute),
+      layer_param(layer_params, "wig", params["parameters"][name], compute),
+      layer_param(layer_params, "wio", params["parameters"][name], compute)
     }
 
     hidden_kernel = {
-      layer_param(layer_params, "whi", params[name], compute),
-      layer_param(layer_params, "whf", params[name], compute),
-      layer_param(layer_params, "whg", params[name], compute),
-      layer_param(layer_params, "who", params[name], compute)
+      layer_param(layer_params, "whi", params["parameters"][name], compute),
+      layer_param(layer_params, "whf", params["parameters"][name], compute),
+      layer_param(layer_params, "whg", params["parameters"][name], compute),
+      layer_param(layer_params, "who", params["parameters"][name], compute)
     }
 
     bias =
       if use_bias do
         {
-          layer_param(layer_params, "bi", params[name], compute),
-          layer_param(layer_params, "bf", params[name], compute),
-          layer_param(layer_params, "bg", params[name], compute),
-          layer_param(layer_params, "bo", params[name], compute)
+          layer_param(layer_params, "bi", params["parameters"][name], compute),
+          layer_param(layer_params, "bf", params["parameters"][name], compute),
+          layer_param(layer_params, "bg", params["parameters"][name], compute),
+          layer_param(layer_params, "bo", params["parameters"][name], compute)
         }
       else
         {Nx.tensor(0, type: compute), Nx.tensor(0, type: compute), Nx.tensor(0, type: compute),
@@ -882,9 +953,9 @@ defmodule Axon.Compiler do
 
     input = Nx.as_type(res, compute)
 
-    input_kernel = {layer_param(layer_params, "wi", params[name], compute)}
-    hidden_kernel = {layer_param(layer_params, "wh", params[name], compute)}
-    bias = {layer_param(layer_params, "b", params[name], compute)}
+    input_kernel = {layer_param(layer_params, "wi", params["parameters"][name], compute)}
+    hidden_kernel = {layer_param(layer_params, "wh", params["parameters"][name], compute)}
+    bias = {layer_param(layer_params, "b", params["parameters"][name], compute)}
 
     carry = {Nx.as_type(h, compute), Nx.as_type(c, compute)}
 
@@ -965,24 +1036,24 @@ defmodule Axon.Compiler do
     input = Nx.as_type(res, compute)
 
     input_kernel = {
-      layer_param(layer_params, "wir", params[name], compute),
-      layer_param(layer_params, "wiz", params[name], compute),
-      layer_param(layer_params, "win", params[name], compute)
+      layer_param(layer_params, "wir", params["parameters"][name], compute),
+      layer_param(layer_params, "wiz", params["parameters"][name], compute),
+      layer_param(layer_params, "win", params["parameters"][name], compute)
     }
 
     hidden_kernel = {
-      layer_param(layer_params, "whr", params[name], compute),
-      layer_param(layer_params, "whz", params[name], compute),
-      layer_param(layer_params, "whn", params[name], compute)
+      layer_param(layer_params, "whr", params["parameters"][name], compute),
+      layer_param(layer_params, "whz", params["parameters"][name], compute),
+      layer_param(layer_params, "whn", params["parameters"][name], compute)
     }
 
     bias =
       if use_bias do
         {
-          layer_param(layer_params, "br", params[name], compute),
-          layer_param(layer_params, "bz", params[name], compute),
-          layer_param(layer_params, "bin", params[name], compute),
-          layer_param(layer_params, "bhn", params[name], compute)
+          layer_param(layer_params, "br", params["parameters"][name], compute),
+          layer_param(layer_params, "bz", params["parameters"][name], compute),
+          layer_param(layer_params, "bin", params["parameters"][name], compute),
+          layer_param(layer_params, "bhn", params["parameters"][name], compute)
         }
       else
         {
@@ -1408,10 +1479,10 @@ defmodule Axon.Compiler do
                   Nx.tensor(0.0, type: param_policy)
 
                 regularizer when is_atom(regularizer) ->
-                  apply(Axon.Regularizers, regularizer, [params[name]])
+                  apply(Axon.Regularizers, regularizer, [params["parameters"][name]])
 
                 regularizer when is_function(regularizer) ->
-                  apply(regularizer, [params[name]])
+                  apply(regularizer, [params["parameters"][name]])
               end
             end
 
@@ -1427,6 +1498,11 @@ defmodule Axon.Compiler do
   end
 
   ## Helpers
+
+  defp layer_var(layer_vars, key, param_name, compute) do
+    %{name: p} = layer_vars[key]
+    Nx.as_type(param_name[p], compute)
+  end
 
   defp layer_param(layer_params, key, param_name, compute) do
     %{name: p, frozen: frozen} = layer_params[key]

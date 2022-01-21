@@ -57,12 +57,12 @@ defmodule MixedPrecisionTest do
 
       params = pstate[:model_state]
 
-      assert Nx.type(params["dense1"]["kernel"]) == {:bf, 16}
-      assert Nx.type(params["dense1"]["bias"]) == {:bf, 16}
-      assert Nx.type(params["dense2"]["kernel"]) == {:bf, 16}
-      assert Nx.type(params["dense2"]["bias"]) == {:bf, 16}
-      assert Nx.type(params["batch_norm"]["gamma"]) == {:f, 32}
-      assert Nx.type(params["batch_norm"]["beta"]) == {:f, 32}
+      assert Nx.type(params["parameters"]["dense1"]["kernel"]) == {:bf, 16}
+      assert Nx.type(params["parameters"]["dense1"]["bias"]) == {:bf, 16}
+      assert Nx.type(params["parameters"]["dense2"]["kernel"]) == {:bf, 16}
+      assert Nx.type(params["parameters"]["dense2"]["bias"]) == {:bf, 16}
+      assert Nx.type(params["parameters"]["batch_norm"]["gamma"]) == {:f, 32}
+      assert Nx.type(params["parameters"]["batch_norm"]["beta"]) == {:f, 32}
     end
   end
 end

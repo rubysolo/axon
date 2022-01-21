@@ -1071,9 +1071,13 @@ defmodule Axon.Layers do
   $$y = \frac{x - E[x]}{\sqrt{Var[x] + \epsilon}} * \gamma + \beta$$
 
   `gamma` and `beta` are often trainable parameters. This method does
-  not maintain an EMA of mean and variance.
+  not maintain an EMA of mean and variance. If `:training` is true,
+  mean and variance will be computed from input. Otherwise it will
+  use the mean and variance provided.
 
   ## Options
+
+    * `:training` - whether or not to compute training mode batch norm.
 
     * `:epsilon` - numerical stability term. $epsilon$ in the above
       formulation.
@@ -1086,40 +1090,14 @@ defmodule Axon.Layers do
     * [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift](https://arxiv.org/abs/1502.03167)
   """
   @doc type: :normalization
-  defn batch_norm(input, gamma, bias, opts \\ []) do
-    opts = keyword!(opts, epsilon: 1.0e-5, channel_index: 1)
+  defn batch_norm(input, gamma, bias, mean, var, opts \\ []) do
+    opts = keyword!(opts, epsilon: 1.0e-5, channel_index: 1, training: false, momentum: 0.9)
 
     axes =
       transform({Nx.axes(input), opts[:channel_index]}, fn {axes, channel} ->
         Axon.Shape.batch_norm_axes(axes, channel)
       end)
 
-    channel_index = opts[:channel_index]
-
-    num_channels =
-      transform({input, channel_index}, fn {inp, channel_idx} ->
-        elem(Nx.shape(inp), channel_idx)
-      end)
-
-    {gamma, bias} =
-      transform({gamma, bias, Nx.rank(input), num_channels, channel_index}, fn {g, b, rank,
-                                                                                num_channels,
-                                                                                channel_idx} ->
-        new_shape =
-          1
-          |> List.duplicate(rank)
-          |> List.to_tuple()
-          |> put_elem(channel_idx, num_channels)
-
-        {Nx.reshape(g, new_shape), Nx.reshape(b, new_shape)}
-      end)
-
-    {mean, var} = mean_and_variance(input, axes: axes)
-    normalize(input, mean, var, gamma, bias, epsilon: opts[:epsilon])
-  end
-
-  defn batch_norm(input, gamma, bias, mean, var, opts \\ []) do
-    opts = keyword!(opts, epsilon: 1.0e-5, channel_index: 1)
     channel_index = opts[:channel_index]
 
     num_channels =
@@ -1142,6 +1120,27 @@ defmodule Axon.Layers do
             Nx.reshape(m, new_shape),
             Nx.reshape(v, new_shape)
           }
+      end)
+
+    {mean, var} =
+      transform({input, mean, var, opts[:training], axes, opts[:momentum]}, fn
+        {inp, last_m, last_v, true, axes, momentum} ->
+          {new_m, new_v} = mean_and_variance(inp, axes: axes)
+
+          # new_m =
+          #   custom_grad(new_m, fn _, _ ->
+          #     [{last_m, momentum * last_m + (1 - momentum) * new_m}]
+          #   end)
+
+          # new_v =
+          #   custom_grad(new_v, fn _, _ ->
+          #     [{last_v, momentum * last_v + (1 - momentum) * new_v}]
+          #   end)
+
+          {new_m, new_v}
+
+        {_, m, v, false, _, _} ->
+          {m, v}
       end)
 
     normalize(input, mean, var, gamma, bias, epsilon: opts[:epsilon])

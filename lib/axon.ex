@@ -84,9 +84,10 @@ defmodule Axon do
   @doc false
   @derive {
     Nx.Container,
-    containers: [], keep: [:id, :name, :output_shape, :parent, :op, :params, :policy, :opts]
+    containers: [],
+    keep: [:id, :name, :output_shape, :parent, :op, :params, :variables, :policy, :opts]
   }
-  defstruct [:id, :name, :output_shape, :parent, :op, :params, :policy, :opts]
+  defstruct [:id, :name, :output_shape, :parent, :op, :params, :variables, :policy, :opts]
 
   @doc """
   Custom Axon layer with given parent and trainable parameters.
@@ -113,7 +114,7 @@ defmodule Axon do
       Axon.layer(parent, op, {}, %{"weight" => w1, "bias" => b1})
   """
   @doc type: :special
-  def layer(parent, op, output_shape, parameters, name \\ nil, opts \\ [])
+  def layer(parent, op, output_shape, parameters, variables \\ %{}, name \\ nil, opts \\ [])
       when is_atom(op) or (is_function(op) and is_map(parameters)) do
     op_name = if is_atom(op), do: op, else: :layer
 
@@ -126,6 +127,7 @@ defmodule Axon do
       parent: parent,
       op: op,
       params: parameters,
+      variables: variables,
       policy: Axon.MixedPrecision.create_policy(),
       opts: opts
     }
@@ -164,6 +166,32 @@ defmodule Axon do
   end
 
   @doc """
+  Represents an internal variable who's value must be aggregated
+  using some aggregation process for inference-time, but who's
+  value is not necessarily considered trainable.
+
+  Examples of Axon variables are mean and variance in batch
+  normalization. Values are updated using the given aggregate
+  rule automatically when using `Axon.Updates.apply_updates`.
+  """
+  def variable(name, shape, opts \\ []) do
+    initializer = opts[:initializer] || :zeros
+    validate_initializer!(initializer)
+    momentum = opts[:momentum] || 0.99
+    aggregator = {:ema, momentum}
+
+    id = System.unique_integer([:positive, :monotonic])
+
+    %Axon.Variable{
+      id: id,
+      name: name,
+      shape: shape,
+      initializer: initializer,
+      aggregator: aggregator
+    }
+  end
+
+  @doc """
   Adds an input layer to the network.
 
   Input layers specify a model's inputs. Input layers are
@@ -177,7 +205,7 @@ defmodule Axon do
   @doc type: :special
   def input(input_shape, opts \\ []) do
     output_shape = Axon.Shape.input(input_shape)
-    layer(nil, :input, output_shape, %{}, opts[:name], opts)
+    layer(nil, :input, output_shape, %{}, %{}, opts[:name], opts)
   end
 
   @doc """
@@ -204,7 +232,7 @@ defmodule Axon do
 
   @doc type: :special
   def constant(%Nx.Tensor{shape: output_shape} = tensor, opts) do
-    layer(nil, :constant, output_shape, %{}, opts[:name], value: tensor)
+    layer(nil, :constant, output_shape, %{}, %{}, opts[:name], value: tensor)
   end
 
   def constant(value, _) do
@@ -267,7 +295,7 @@ defmodule Axon do
         %{"kernel" => kernel}
       end
 
-    node = layer(x, :dense, output_shape, params, opts[:name], use_bias: use_bias)
+    node = layer(x, :dense, output_shape, params, %{}, opts[:name], use_bias: use_bias)
 
     if activation do
       node
@@ -341,7 +369,9 @@ defmodule Axon do
       end
 
     node =
-      layer([input1, input2], :bilinear, output_shape, params, opts[:name], use_bias: use_bias)
+      layer([input1, input2], :bilinear, output_shape, params, %{}, opts[:name],
+        use_bias: use_bias
+      )
 
     if activation do
       node
@@ -430,7 +460,7 @@ defmodule Axon do
       end
 
     node =
-      layer(x, :conv, output_shape, params, opts[:name],
+      layer(x, :conv, output_shape, params, %{}, opts[:name],
         strides: strides,
         padding: padding,
         input_dilation: input_dilation,
@@ -520,7 +550,7 @@ defmodule Axon do
       )
 
     node =
-      layer(x, :conv_transpose, output_shape, params, opts[:name],
+      layer(x, :conv_transpose, output_shape, params, %{}, opts[:name],
         strides: strides,
         padding: padding,
         kernel_dilation: kernel_dilation,
@@ -623,7 +653,7 @@ defmodule Axon do
       end
 
     node =
-      layer(x, :depthwise_conv, output_shape, params, opts[:name],
+      layer(x, :depthwise_conv, output_shape, params, %{}, opts[:name],
         strides: strides,
         padding: padding,
         input_dilation: input_dilation,
@@ -750,6 +780,7 @@ defmodule Axon do
         :separable_conv2d,
         output_shape,
         params,
+        %{},
         opts[:name],
         strides: strides,
         padding: padding,
@@ -895,6 +926,7 @@ defmodule Axon do
         :separable_conv3d,
         output_shape,
         params,
+        %{},
         opts[:name],
         strides: strides,
         padding: padding,
@@ -952,12 +984,12 @@ defmodule Axon do
 
   def activation(%Axon{output_shape: shape} = x, activation, opts) when is_atom(activation) do
     {name, opts} = Keyword.pop(opts, :name, nil)
-    layer(x, activation, shape, %{}, name, opts)
+    layer(x, activation, shape, %{}, %{}, name, opts)
   end
 
   def activation(%Axon{output_shape: shape} = x, activation, opts)
       when is_function(activation, 1) do
-    layer(x, activation, shape, %{}, opts[:name], opts)
+    layer(x, activation, shape, %{}, %{}, opts[:name], opts)
   end
 
   ## Activation
@@ -1008,7 +1040,7 @@ defmodule Axon do
 
   defp dropout(%Axon{output_shape: parent_shape} = x, dropout, opts) do
     rate = opts[:rate] || 0.5
-    layer(x, dropout, parent_shape, %{}, opts[:name], rate: rate)
+    layer(x, dropout, parent_shape, %{}, %{}, opts[:name], rate: rate)
   end
 
   ## Pooling
@@ -1070,7 +1102,7 @@ defmodule Axon do
         [kernel_size: kernel_size, strides: strides, padding: padding, channels: channels]
       end
 
-    layer(x, pool, output_shape, %{}, name, opts)
+    layer(x, pool, output_shape, %{}, %{}, name, opts)
   end
 
   ## Adaptive Pooling
@@ -1135,7 +1167,7 @@ defmodule Axon do
         [output_size: output_size, channels: channels]
       end
 
-    layer(x, pool, output_shape, %{}, name, opts)
+    layer(x, pool, output_shape, %{}, %{}, name, opts)
   end
 
   ## Global Pooling
@@ -1185,7 +1217,7 @@ defmodule Axon do
 
     output_shape = Axon.Shape.global_pool(parent_shape, keep_axes, channels)
 
-    layer(x, pool, output_shape, %{}, name, opts)
+    layer(x, pool, output_shape, %{}, %{}, name, opts)
   end
 
   ## Normalization
@@ -1236,14 +1268,15 @@ defmodule Axon do
     beta = param("beta", beta_shape, initializer: beta_initializer, regularizer: beta_regularizer)
 
     # TODO: Shape check, possibly not needed for all layers
-    mean = param("mean", gamma_shape, initializer: :zeros)
-    var = param("var", gamma_shape, initializer: :zeros)
+    mean = variable("mean", gamma_shape, initializer: :zeros, momentum: opts[:momentum])
+    var = variable("var", gamma_shape, initializer: :zeros, momentum: opts[:momentum])
 
     layer(
       x,
       norm,
       shape,
-      %{"gamma" => gamma, "beta" => beta, "mean" => mean, "var" => var},
+      %{"gamma" => gamma, "beta" => beta},
+      %{"mean" => mean, "var" => var},
       opts[:name],
       epsilon: epsilon,
       channel_index: channel_index
@@ -1284,7 +1317,7 @@ defmodule Axon do
     beta_regularizer = opts[:beta_regularizer]
     beta = param("beta", beta_shape, initializer: beta_initializer, regularizer: beta_regularizer)
 
-    layer(x, :group_norm, shape, %{"gamma" => gamma, "beta" => beta}, opts[:name],
+    layer(x, :group_norm, shape, %{"gamma" => gamma, "beta" => beta}, %{}, opts[:name],
       epsilon: epsilon,
       channel_index: channel_index,
       group_size: group_size
@@ -1323,7 +1356,7 @@ defmodule Axon do
         expr.shape
       end
 
-    layer(x, :nx, output_shape, %{}, opts[:name], fun: fun)
+    layer(x, :nx, output_shape, %{}, %{}, opts[:name], fun: fun)
   end
 
   def nx(inputs, fun, opts) when is_tuple(inputs) and is_function(fun, 1) do
@@ -1345,7 +1378,7 @@ defmodule Axon do
     expr = Nx.Defn.jit(fun, [params], compiler: Axon.Defn)
     output_shape = Tuple.insert_at(expr.shape, 0, nil)
 
-    layer(inputs, :nx, output_shape, %{}, opts[:name], fun: fun)
+    layer(inputs, :nx, output_shape, %{}, %{}, opts[:name], fun: fun)
   end
 
   @doc """
@@ -1363,7 +1396,7 @@ defmodule Axon do
   @doc type: :shape
   def flatten(%Axon{output_shape: shape} = x, opts \\ []) do
     output_shape = Axon.Shape.flatten(shape)
-    layer(x, :flatten, output_shape, %{}, opts[:name])
+    layer(x, :flatten, output_shape, %{}, %{}, opts[:name])
   end
 
   @doc """
@@ -1385,7 +1418,7 @@ defmodule Axon do
   def reshape(%Axon{op: op, output_shape: shape} = x, new_shape, opts \\ []) do
     is_constant_reshape? = op == :constant
     output_shape = Axon.Shape.reshape(shape, new_shape, is_constant_reshape?)
-    layer(x, :reshape, output_shape, %{}, opts[:name], constant: is_constant_reshape?)
+    layer(x, :reshape, output_shape, %{}, %{}, opts[:name], constant: is_constant_reshape?)
   end
 
   @doc """
@@ -1403,7 +1436,7 @@ defmodule Axon do
 
     output_shape = Axon.Shape.transpose(shape, permutation, ignore_batch?)
 
-    layer(x, :transpose, output_shape, %{}, opts[:name],
+    layer(x, :transpose, output_shape, %{}, %{}, opts[:name],
       permutation: permutation,
       ignore_batch?: ignore_batch?
     )
@@ -1424,7 +1457,7 @@ defmodule Axon do
   def pad(%Axon{output_shape: shape} = x, config, value \\ 0.0, opts \\ [])
       when is_list(config) and is_number(value) do
     output_shape = Axon.Shape.pad(shape, config)
-    layer(x, :pad, output_shape, %{}, opts[:name], padding_config: config, value: value)
+    layer(x, :pad, output_shape, %{}, %{}, opts[:name], padding_config: config, value: value)
   end
 
   @doc """
@@ -1451,7 +1484,7 @@ defmodule Axon do
     channels = opts[:channels] || :first
     output_shape = Axon.Shape.resize(shape, resize_shape, channels)
 
-    layer(x, :resize, output_shape, %{}, opts[:name],
+    layer(x, :resize, output_shape, %{}, %{}, opts[:name],
       shape: resize_shape,
       method: method,
       channels: channels
@@ -1476,7 +1509,7 @@ defmodule Axon do
     axis = opts[:axis] || Nx.rank(x_shape) - 1
     output_shape = Axon.Shape.concatenate([x_shape, y_shape], axis)
 
-    layer([x, y], :concatenate, output_shape, %{}, opts[:name], axis: axis)
+    layer([x, y], :concatenate, output_shape, %{}, %{}, opts[:name], axis: axis)
   end
 
   @doc type: :composition
@@ -1486,7 +1519,7 @@ defmodule Axon do
     input_shapes = inputs |> Enum.map(fn %Axon{output_shape: shape} -> shape end)
     output_shape = Axon.Shape.concatenate(input_shapes, axis)
 
-    layer(inputs, :concatenate, output_shape, %{}, opts[:name], axis: axis)
+    layer(inputs, :concatenate, output_shape, %{}, %{}, opts[:name], axis: axis)
   end
 
   @doc false
@@ -1516,7 +1549,7 @@ defmodule Axon do
     @doc type: :composition
     def unquote(op)(%Axon{output_shape: lhs_shape} = x, %Axon{output_shape: rhs_shape} = y, opts) do
       output_shape = Axon.Shape.element_wise([lhs_shape, rhs_shape])
-      Axon.layer([x, y], unquote(op), output_shape, %{}, opts[:name])
+      Axon.layer([x, y], unquote(op), output_shape, %{}, %{}, opts[:name])
     end
 
     @doc """
@@ -1540,7 +1573,7 @@ defmodule Axon do
         end)
 
       output_shape = Axon.Shape.element_wise(shapes)
-      layer(inputs, unquote(op), output_shape, %{}, [], opts[:name])
+      layer(inputs, unquote(op), output_shape, %{}, %{}, [], opts[:name])
     end
 
     @doc false
@@ -1570,7 +1603,9 @@ defmodule Axon do
         opts \\ []
       )
       when is_function(cond_fn, 1) do
-    layer([parent, true_graph, false_graph], :cond, out_shape, %{}, opts[:name], cond: cond_fn)
+    layer([parent, true_graph, false_graph], :cond, out_shape, %{}, %{}, opts[:name],
+      cond: cond_fn
+    )
   end
 
   @doc """
@@ -1587,6 +1622,7 @@ defmodule Axon do
           parent,
           fn x, _ -> Nx.slice_axis(x, i * slice_size, slice_size, axis) end,
           split_shape,
+          %{},
           %{},
           opts[:name]
         )
@@ -1686,6 +1722,7 @@ defmodule Axon do
         :lstm,
         {{hidden_state_shape, hidden_state_shape}, output_shape},
         params,
+        %{},
         opts[:name],
         activation: activation,
         gate: gate,
@@ -1785,6 +1822,7 @@ defmodule Axon do
         :gru,
         {{hidden_state_shape}, output_shape},
         params,
+        %{},
         opts[:name],
         activation: activation,
         gate: gate,
@@ -1877,6 +1915,7 @@ defmodule Axon do
         :conv_lstm,
         {{hidden_state_shape, hidden_state_shape}, output_shape},
         %{"wi" => wi, "wh" => wh, "b" => b},
+        %{},
         opts[:name],
         hidden_state: hidden_state,
         strides: strides,
@@ -1909,7 +1948,7 @@ defmodule Axon do
     kernel_initializer = opts[:kernel_initializer] || :uniform
     kernel = param("kernel", kernel_shape, initializer: kernel_initializer)
 
-    layer(x, :embedding, output_shape, %{"kernel" => kernel}, opts[:name])
+    layer(x, :embedding, output_shape, %{"kernel" => kernel}, %{}, opts[:name])
   end
 
   @doc """

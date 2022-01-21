@@ -790,6 +790,25 @@ defmodule Axon.Updates do
     end)
   end
 
+  def multi_transform(transform_map) do
+    init_fn = fn params ->
+      transform_map
+      |> Map.new(fn {k, {init_fn, _}} ->
+        {k, init_fn.(params[k])}
+      end)
+    end
+
+    apply_fn = fn updates, state, params ->
+      transform_map
+      |> Enum.reduce({%{}, %{}}, fn {k, {_, apply_fn}}, {new_updates, new_states} ->
+        {updates, state} = apply_fn.(updates[k], state[k], params[k])
+        {Map.put(new_updates, k, updates), Map.put(new_states, k, state)}
+      end)
+    end
+
+    {init_fn, apply_fn}
+  end
+
   ## Helpers
 
   defnp update_moment(x, moment, decay, order) do
