@@ -1873,7 +1873,7 @@ defmodule Axon.Layers do
          bias,
          opts \\ [],
          attention_fn \\ &Axon.Activations.softmax/1,
-         dropout_fn \\ &dropout/2
+         dropout_fn \\ &Axon.Layers.dropout/2
        ) do
     opts = keyword!(opts, [:axis, rate: 0.5])
 

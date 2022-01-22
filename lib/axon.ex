@@ -1957,9 +1957,7 @@ defmodule Axon do
   @doc """
   Adds a self-attention layer to the network.
   """
-  def self_attention(%Axon{output_shape: q_shape} = q) do
-    embed_dim = elem(q_shape, Nx.rank(q_shape) - 1)
-    num_heads = 1
+  def self_attention(%Axon{output_shape: q_shape} = q, embed_dim, num_heads) do
     multi_head_attention(q, q, embed_dim, num_heads)
   end
 
