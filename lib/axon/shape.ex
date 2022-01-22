@@ -1714,7 +1714,6 @@ defmodule Axon.Shape do
 
   def multi_head_attention_qkv_kernel(q_shape, num_heads) do
     qkv_features = elem(q_shape, Nx.rank(q_shape - 1))
-    seq_length = elem(q_shape, Nx.rank(q_shape - 2))
     head_dim = div(qkv_features, num_heads)
     {num_heads, head_dim, qkv_features}
   end

@@ -1909,7 +1909,7 @@ defmodule Axon do
   @doc type: :attention
   def multi_head_attention(
         %Axon{output_shape: q_shape} = q,
-        %Axon{output_shape: kv_shape} = kv,
+        %Axon{} = kv,
         embed_dim,
         num_heads,
         opts \\ []
@@ -1957,7 +1957,7 @@ defmodule Axon do
   @doc """
   Adds a self-attention layer to the network.
   """
-  def self_attention(%Axon{output_shape: q_shape} = q, embed_dim, num_heads) do
+  def self_attention(%Axon{} = q, embed_dim, num_heads) do
     multi_head_attention(q, q, embed_dim, num_heads)
   end
 

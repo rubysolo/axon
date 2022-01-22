@@ -1879,7 +1879,7 @@ defmodule Axon.Layers do
 
     axis = opts[:axis]
 
-    depth = transform(query, fn q -> elem(Nx.shape(query), Nx.rank(query) - 1) end)
+    depth = transform(query, fn q -> elem(Nx.shape(q), Nx.rank(q) - 1) end)
     n = Nx.rank(query)
 
     batch_dims =
@@ -1911,11 +1911,11 @@ defmodule Axon.Layers do
     attn_weights =
       attn_weights
       |> attention_fn.()
-      |> dropout_fn.(rate: rate)
+      |> dropout_fn.(rate: opts[:rate])
 
     {w_contracting_dims, v_contracting_dims} =
       transform({norm_dims, Nx.rank(value), axis}, fn {n, v, a} ->
-        {norm_dims, Enum.to_list((v - length(a))..(v - 1))}
+        {n, Enum.to_list((v - length(a))..(v - 1))}
       end)
 
     y =
@@ -1957,7 +1957,7 @@ defmodule Axon.Layers do
        ) do
     # TODO: Shape check
     query = Nx.dot(inputs_q, [-1], q_weights, [-1]) + q_bias
-    key = Nx.dot(inputs_kv, [-1], k_weigthts, [-1]) + k_bias
+    key = Nx.dot(inputs_kv, [-1], k_weights, [-1]) + k_bias
     value = Nx.dot(inputs_kv, [-1], v_weights, [-1]) + v_bias
 
     query
