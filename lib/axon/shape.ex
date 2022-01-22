@@ -1711,4 +1711,31 @@ defmodule Axon.Shape do
         put_elem(shape, d, elem(output_shape, i))
     end
   end
+
+  def multi_head_attention_qkv_kernel(q_shape, num_heads) do
+    qkv_features = elem(q_shape, Nx.rank(q_shape - 1))
+    seq_length = elem(q_shape, Nx.rank(q_shape - 2))
+    head_dim = div(qkv_features, num_heads)
+    {num_heads, head_dim, qkv_features}
+  end
+
+  def multi_head_attention_qkv_bias(q_shape, num_heads) do
+    qkv_features = elem(q_shape, Nx.rank(q_shape) - 1)
+    head_dim = div(qkv_features, num_heads)
+    {1, 1, head_dim}
+  end
+
+  def multi_head_attention_embed_kernel(q_shape, num_heads, embed_dim) do
+    qkv_features = elem(q_shape, Nx.rank(q_shape) - 1)
+    head_dim = div(qkv_features, num_heads)
+    {embed_dim, num_heads, head_dim}
+  end
+
+  def multi_head_attention_embed_bias(embed_dim) do
+    {1, 1, embed_dim}
+  end
+
+  def multi_head_attention(q_shape, embed_dim) do
+    put_elem(q_shape, Nx.rank(q_shape) - 1, embed_dim)
+  end
 end

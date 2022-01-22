@@ -1858,4 +1858,111 @@ defmodule Axon.Layers do
       end
     end)
   end
+
+  ## Attention
+
+  @doc """
+  Functional implementation of a dot-product attention from
+  https://arxiv.org/abs/1706.03762.
+  """
+  @doc type: :attention
+  defn dot_product_attention(
+         query,
+         key,
+         value,
+         bias,
+         opts \\ [],
+         attention_fn \\ &Axon.Activations.softmax/1,
+         dropout_fn \\ &dropout/2
+       ) do
+    opts = keyword!(opts, [:axis, rate: 0.5])
+
+    axis = opts[:axis]
+
+    depth = transform(query, fn q -> elem(Nx.shape(query), Nx.rank(query) - 1) end)
+    n = Nx.rank(query)
+
+    batch_dims =
+      transform({n, axis}, fn {n, axis} -> Enum.to_list(0..(n - 1)) -- [n - 1 | axis] end)
+
+    qk_perm =
+      transform({batch_dims, axis, n}, fn {batch_dims, axis, n} ->
+        batch_dims ++ axis ++ [n - 1]
+      end)
+
+    v_perm =
+      transform({batch_dims, axis, n}, fn {batch_dims, axis, n} ->
+        batch_dims ++ [n - 1] ++ axis
+      end)
+
+    key = Nx.transpose(key, axes: qk_perm)
+    query = Nx.transpose(query, axes: qk_perm)
+    value = Nx.transpose(value, axes: v_perm)
+
+    query = query / Nx.sqrt(depth)
+
+    attn_weights = Nx.dot(query, [n - 1], batch_dims, key, [n - 1], batch_dims) + bias
+
+    norm_dims =
+      transform({Nx.rank(attn_weights), axis}, fn {n_dims, axis} ->
+        Enum.to_list((n_dims - length(axis))..(n_dims - 1))
+      end)
+
+    attn_weights =
+      attn_weights
+      |> attention_fn.()
+      |> dropout_fn.(rate: rate)
+
+    {w_contracting_dims, v_contracting_dims} =
+      transform({norm_dims, Nx.rank(value), axis}, fn {n, v, a} ->
+        {norm_dims, Enum.to_list((v - length(a))..(v - 1))}
+      end)
+
+    y =
+      Nx.dot(
+        attn_weights,
+        w_contracting_dims,
+        batch_dims,
+        value,
+        v_contracting_dims,
+        batch_dims
+      )
+
+    perm_inv =
+      transform(qk_perm, fn perm ->
+        perm
+        |> Enum.with_index()
+        |> Enum.map(fn {_, i} -> i end)
+      end)
+
+    Nx.transpose(y, axes: perm_inv)
+  end
+
+  @doc """
+  Functional implementation of multi-head dot product attention.
+  """
+  @doc type: :attention
+  defn multi_head_dot_product_attention(
+         inputs_q,
+         inputs_kv,
+         q_weights,
+         q_bias,
+         k_weights,
+         k_bias,
+         v_weights,
+         v_bias,
+         weight,
+         bias,
+         attention_fn \\ &dot_product_attention/4
+       ) do
+    # TODO: Shape check
+    query = Nx.dot(inputs_q, [-1], q_weights, [-1]) + q_bias
+    key = Nx.dot(inputs_kv, [-1], k_weigthts, [-1]) + k_bias
+    value = Nx.dot(inputs_kv, [-1], v_weights, [-1]) + v_bias
+
+    query
+    |> attention_fn.(key, value, Nx.tensor(0.0))
+    |> Nx.dot([-2, -1], weight, [-2, -1])
+    |> Nx.add(bias)
+  end
 end

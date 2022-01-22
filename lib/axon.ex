@@ -1904,6 +1904,66 @@ defmodule Axon do
   end
 
   @doc """
+  Adds a multi-head attention layer to the network.
+  """
+  @doc type: :attention
+  def multi_head_attention(
+        %Axon{output_shape: q_shape} = q,
+        %Axon{output_shape: kv_shape} = kv,
+        embed_dim,
+        num_heads,
+        opts \\ []
+      ) do
+    qkv_initializer = opts[:qkv_initializer] || :glorot_uniform
+    initializer = opts[:initializer] || :glorot_uniform
+
+    qkv_kernel_shape = Axon.Shape.multi_head_attention_qkv_kernel(q_shape, num_heads)
+    qkv_bias_shape = Axon.Shape.multi_head_attention_qkv_bias(q_shape, num_heads)
+
+    q_kernel = param("q_kernel", qkv_kernel_shape, initializer: qkv_initializer)
+    q_bias = param("q_bias", qkv_bias_shape, initializer: :zeros)
+    k_kernel = param("k_kernel", qkv_kernel_shape, initializer: qkv_initializer)
+    k_bias = param("k_bias", qkv_bias_shape, initializer: :zeros)
+    v_kernel = param("v_kernel", qkv_kernel_shape, initializer: qkv_initializer)
+    v_bias = param("v_bias", qkv_bias_shape, initializer: :zeros)
+
+    embed_kernel_shape =
+      Axon.Shape.multi_head_attention_embed_weight(q_shape, num_heads, embed_dim)
+
+    embed_bias_shape = Axon.Shape.multi_head_attention_embed_bias(embed_dim)
+    embed_kernel = param("embed_kernel", embed_kernel_shape, initializer: initializer)
+    embed_bias = param("embed_bias", embed_bias_shape, initializer: :zeros)
+
+    output_shape = Axon.Shape.multi_head_attention(q_shape, embed_dim)
+
+    layer(
+      [q, kv],
+      :multi_head_attention,
+      output_shape,
+      %{
+        "q_kernel" => q_kernel,
+        "q_bias" => q_bias,
+        "k_kernel" => k_kernel,
+        "k_bias" => k_bias,
+        "v_kernel" => v_kernel,
+        "v_bias" => v_bias,
+        "kernel" => embed_kernel,
+        "bias" => embed_bias
+      },
+      opts[:name]
+    )
+  end
+
+  @doc """
+  Adds a self-attention layer to the network.
+  """
+  def self_attention(%Axon{output_shape: q_shape} = q) do
+    embed_dim = elem(q_shape, Nx.rank(q_shape) - 1)
+    num_heads = 1
+    multi_head_attention(q, q, embed_dim, num_heads)
+  end
+
+  @doc """
   Freezes parameters returned from `fun` in the given
   model. `fun` takes the model's parameter list and returns
   the list of parameters it wishes to freeze. `fun` defaults
