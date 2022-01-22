@@ -1953,7 +1953,7 @@ defmodule Axon.Layers do
          v_bias,
          weight,
          bias,
-         attention_fn \\ &dot_product_attention/4
+         attention_fn \\ &Axon.Layers.dot_product_attention/4
        ) do
     # TODO: Shape check
     query = Nx.dot(inputs_q, [-1], q_weights, [-1]) + q_bias
