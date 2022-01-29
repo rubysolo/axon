@@ -1928,7 +1928,7 @@ defmodule Axon do
     v_bias = param("v_bias", qkv_bias_shape, initializer: :zeros)
 
     embed_kernel_shape =
-      Axon.Shape.multi_head_attention_embed_weight(q_shape, num_heads, embed_dim)
+      Axon.Shape.multi_head_attention_embed_kernel(q_shape, num_heads, embed_dim)
 
     embed_bias_shape = Axon.Shape.multi_head_attention_embed_bias(embed_dim)
     embed_kernel = param("embed_kernel", embed_kernel_shape, initializer: initializer)

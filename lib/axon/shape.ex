@@ -163,6 +163,9 @@ defmodule Axon.Shape do
       iex> Axon.Shape.dense({nil, 128}, 128)
       {nil, 128}
 
+      iex> Axon.Shape.dense({nil, 38, 512}, 2048)
+      {nil, 38, 2048}
+
   ### Errors
 
       iex> Axon.Shape.dense({}, 32)
@@ -178,7 +181,7 @@ defmodule Axon.Shape do
               " #{Nx.rank(input_shape)}"
     end
 
-    {elem(input_shape, 0), units}
+    put_elem(input_shape, Nx.rank(input_shape) - 1, units)
   end
 
   @doc """
@@ -1420,13 +1423,7 @@ defmodule Axon.Shape do
         Tuple.delete_at(shape, 0)
       end
 
-    unless Nx.size(original_shape) == Nx.size(new_shape) do
-      raise ArgumentError,
-            "new shape invalid for reshape operation," <>
-              " layer shape #{inspect(shape)} is incompatible" <>
-              " with new shape #{inspect(new_shape)}, new shape" <>
-              " must have same size as non-batch dimensions of old shape"
-    end
+    new_shape = Nx.Shape.reshape(original_shape, new_shape)
 
     if is_constant_reshape? do
       new_shape
@@ -1713,7 +1710,7 @@ defmodule Axon.Shape do
   end
 
   def multi_head_attention_qkv_kernel(q_shape, num_heads) do
-    qkv_features = elem(q_shape, Nx.rank(q_shape - 1))
+    qkv_features = elem(q_shape, Nx.rank(q_shape) - 1)
     head_dim = div(qkv_features, num_heads)
     {num_heads, head_dim, qkv_features}
   end
