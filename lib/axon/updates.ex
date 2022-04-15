@@ -85,6 +85,7 @@ defmodule Axon.Updates do
   """
   import Nx.Defn
   import Axon.Shared
+  alias Axon.Updates.GradientState
 
   @doc ~S"""
   Scales input by a fixed step size.
@@ -131,10 +132,10 @@ defmodule Axon.Updates do
     mus = zeros_like(params)
     nus = zeros_like(params)
     count = Nx.tensor(0)
-    %{mu: mus, nu: nus, count: count}
+    gradient_state(%{mu: mus, nu: nus, count: count})
   end
 
-  defnp apply_scale_by_adam(x, %{mu: mu, nu: nu, count: count}, _params, opts \\ []) do
+  defnp apply_scale_by_adam(x, %GradientState{state: %{mu: mu, nu: nu, count: count}}, _params, opts \\ []) do
     opts = keyword!(opts, b1: 0.9, b2: 0.999, eps: 1.0e-8, eps_root: 1.0e-15)
     b1 = opts[:b1]
     b2 = opts[:b2]
@@ -152,7 +153,7 @@ defmodule Axon.Updates do
         deep_merge(mu_hat, nu_hat, fn z, t -> z / (Nx.sqrt(t + eps_root) + eps) end)
       end)
 
-    {x, %{mu: mu, nu: nu, count: count + 1}}
+    {x, gradient_state(%{mu: mu, nu: nu, count: count + 1})}
   end
 
   @doc """
@@ -175,10 +176,10 @@ defmodule Axon.Updates do
 
   defnp init_scale_by_rss(params, value) do
     sum_of_squares = fulls_like(params, value)
-    %{sum_of_squares: sum_of_squares}
+    gradient_state(%{sum_of_squares: sum_of_squares})
   end
 
-  defnp apply_scale_by_rss(x, %{sum_of_squares: sum_of_squares}, _params, opts \\ []) do
+  defnp apply_scale_by_rss(x, %GradientState{state: %{sum_of_squares: sum_of_squares}}, _params, opts \\ []) do
     opts = keyword!(opts, eps: 1.0e-7)
     eps = opts[:eps]
 
@@ -204,7 +205,7 @@ defmodule Axon.Updates do
         deep_merge(x, inv_sqrt_x_square, fn g, t -> g * t end)
       end)
 
-    {x, %{sum_of_squares: sum_of_squares}}
+    {x, gradient_state(%{sum_of_squares: sum_of_squares})}
   end
 
   @doc """
@@ -232,10 +233,10 @@ defmodule Axon.Updates do
 
   defnp init_scale_by_rms(params, scale) do
     nu = fulls_like(params, scale)
-    %{nu: nu}
+    gradient_state(%{nu: nu})
   end
 
-  defnp apply_scale_by_rms(x, %{nu: nu}, _params, opts \\ []) do
+  defnp apply_scale_by_rms(x, %GradientState{state: %{nu: nu}}, _params, opts \\ []) do
     opts = keyword!(opts, decay: 0.9, eps: 1.0e-8)
     decay = opts[:decay]
     eps = opts[:eps]
@@ -247,7 +248,7 @@ defmodule Axon.Updates do
         deep_merge(x, nu, fn g, t -> Nx.rsqrt(t + eps) * g end)
       end)
 
-    {x, %{nu: nu}}
+    {x, gradient_state(%{nu: nu})}
   end
 
   @doc """
@@ -277,10 +278,10 @@ defmodule Axon.Updates do
     mus = zeros_like(params)
     nus = zeros_like(params)
     count = Nx.tensor(0)
-    %{mu: mus, nu: nus, count: count}
+    gradient_state(%{mu: mus, nu: nus, count: count})
   end
 
-  defnp apply_scale_by_belief(x, %{mu: mu, nu: nu, count: count}, _params, opts \\ []) do
+  defnp apply_scale_by_belief(x, %GradientState{state: %{mu: mu, nu: nu, count: count}}, _params, opts \\ []) do
     opts = keyword!(opts, b1: 0.9, b2: 0.999, eps: 0.0, eps_root: 1.0e-16)
     b1 = opts[:b1]
     b2 = opts[:b2]
@@ -298,7 +299,7 @@ defmodule Axon.Updates do
         deep_merge(mu_hat, nu_hat, fn z, t -> 1 / (Nx.sqrt(t + eps_root) + eps) * z end)
       end)
 
-    {x, %{mu: mu, nu: nu, count: count + 1}}
+    {x, gradient_state(%{mu: mu, nu: nu, count: count + 1})}
   end
 
   @doc """
@@ -327,10 +328,10 @@ defmodule Axon.Updates do
   defnp init_scale_by_stddev(params, value) do
     mu = zeros_like(params)
     nu = fulls_like(params, value)
-    %{mu: mu, nu: nu}
+    gradient_state(%{mu: mu, nu: nu})
   end
 
-  defnp apply_scale_by_stddev(x, %{mu: mu, nu: nu}, _params, opts \\ []) do
+  defnp apply_scale_by_stddev(x, %GradientState{state: %{mu: mu, nu: nu}}, _params, opts \\ []) do
     opts = keyword!(opts, decay: 0.9, eps: 1.0e-8)
     decay = opts[:decay]
     eps = opts[:eps]
@@ -348,7 +349,7 @@ defmodule Axon.Updates do
         deep_merge(x, mu_nu, fn g, mn -> g * mn end)
       end)
 
-    {x, %{mu: mu, nu: nu}}
+    {x, gradient_state(%{mu: mu, nu: nu})}
   end
 
   @doc """
@@ -363,10 +364,10 @@ defmodule Axon.Updates do
   end
 
   defnp init_scale_by_schedule(_) do
-    %{count: Nx.tensor(0)}
+    gradient_state(%{count: Nx.tensor(0)})
   end
 
-  defnp apply_scale_by_schedule(x, %{count: count}, _params, schedule_fn) do
+  defnp apply_scale_by_schedule(x, %GradientState{state: %{count: count}}, _params, schedule_fn) do
     step_size = schedule_fn.(count)
 
     updates =
@@ -374,7 +375,7 @@ defmodule Axon.Updates do
         deep_new(x, fn x -> x * step_size end)
       end)
 
-    {updates, %{count: count + 1}}
+    {updates, gradient_state(%{count: count + 1})}
   end
 
   @doc """
@@ -405,10 +406,10 @@ defmodule Axon.Updates do
     mu = zeros_like(params)
     nu = zeros_like(params)
     count = Nx.tensor(0)
-    %{mu: mu, nu: nu, count: count}
+    gradient_state(%{mu: mu, nu: nu, count: count})
   end
 
-  defnp apply_scale_by_radam(x, %{mu: mu, nu: nu, count: count}, _params, opts \\ []) do
+  defnp apply_scale_by_radam(x, %GradientState{state: %{mu: mu, nu: nu, count: count}}, _params, opts \\ []) do
     opts = keyword!(opts, b1: 0.9, b2: 0.999, eps: 1.0e-8, eps_root: 0.0, threshold: 5.0)
     b1 = opts[:b1]
     b2 = opts[:b2]
@@ -435,7 +436,7 @@ defmodule Axon.Updates do
         mu_hat
       end
 
-    {x, %{mu: mu, nu: nu, count: count + 1}}
+    {x, gradient_state(%{mu: mu, nu: nu, count: count + 1})}
   end
 
   defnp radam_update(ro, ro_inf, mu, nu, eps_root, eps) do
@@ -469,10 +470,10 @@ defmodule Axon.Updates do
 
   defnp init_trace(params) do
     trace = zeros_like(params)
-    %{trace: trace}
+    gradient_state(%{trace: trace})
   end
 
-  defnp apply_trace(x, %{trace: trace}, _params, opts \\ []) do
+  defnp apply_trace(x, %GradientState{state: %{trace: trace}}, _params, opts \\ []) do
     opts = keyword!(opts, decay: 0.9, nesterov: false)
     decay = opts[:decay]
 
@@ -490,7 +491,7 @@ defmodule Axon.Updates do
         end
       end)
 
-    {x, %{trace: update_trace}}
+    {x, gradient_state(%{trace: update_trace})}
   end
 
   @doc """
@@ -622,10 +623,10 @@ defmodule Axon.Updates do
   end
 
   defnp init_add_noise(_params) do
-    %{count: Nx.tensor(0)}
+    gradient_state(%{count: Nx.tensor(0)})
   end
 
-  defnp apply_add_noise(x, %{count: count}, _params, opts \\ []) do
+  defnp apply_add_noise(x, %GradientState{state: %{count: count}}, _params, opts \\ []) do
     opts = keyword!(opts, eta: 0.01, gamma: 0.55)
     var = opts[:eta] / Nx.power(count + 1, opts[:gamma])
 
@@ -639,7 +640,7 @@ defmodule Axon.Updates do
         deep_merge(x, noise, fn g, n -> g + var * n end)
       end)
 
-    {updates, %{count: count + 1}}
+    {updates, gradient_state(%{count: count + 1})}
   end
 
   @doc """
@@ -660,10 +661,10 @@ defmodule Axon.Updates do
     mu = value
     nu = value
     count = Nx.tensor(0)
-    %{mu: mu, nu: nu, count: count}
+    gradient_state(%{mu: mu, nu: nu, count: count})
   end
 
-  defnp apply_scale_by_yogi(x, %{mu: mu, nu: nu, count: count}, _params, opts \\ []) do
+  defnp apply_scale_by_yogi(x, %GradientState{state: %{mu: mu, nu: nu, count: count}}, _params, opts \\ []) do
     opts = keyword!(opts, b1: 0.9, b2: 0.999, eps: 1.0e-3, eps_root: 0.0)
     b1 = opts[:b1]
     b2 = opts[:b2]
@@ -687,7 +688,7 @@ defmodule Axon.Updates do
         deep_merge(mu_hat, nu_hat, fn m, v -> m / (Nx.sqrt(v + eps_root) + eps) end)
       end)
 
-    {updates, %{mu: mu, nu: nu, count: count + 1}}
+    {updates, gradient_state(%{mu: mu, nu: nu, count: count + 1})}
   end
 
   @doc """
@@ -708,7 +709,7 @@ defmodule Axon.Updates do
   This is often as the initial update in many functions in this module.
   """
   def identity() do
-    {fn _params -> {} end, fn updates, state, _params -> {updates, state} end}
+    {fn _params -> gradient_state(%{}) end, fn updates, state, _params -> {updates, state} end}
   end
 
   def identity(combinator) do
@@ -731,16 +732,14 @@ defmodule Axon.Updates do
   """
   def compose({init_fn1, apply_fn1}, {init_fn2, apply_fn2}) do
     init_fn = fn params ->
-      state = init_fn1.(params)
-      Tuple.insert_at(state, 0, init_fn2.(params))
+      %GradientState{} = gradient_state = init_fn1.(params)
+      %{gradient_state | next_state: init_fn2.(params)}
     end
 
-    apply_fn = fn updates, state, params ->
-      this_state = elem(state, 0)
-      other_state = Tuple.delete_at(state, 0)
-      {updates, new_other_state} = apply_fn1.(updates, other_state, params)
+    apply_fn = fn updates, %GradientState{state: this_state, next_state: next_state}, params ->
+      {updates, new_next_state} = apply_fn1.(updates, next_state, params)
       {updates, new_this_state} = apply_fn2.(updates, this_state, params)
-      {updates, Tuple.insert_at(new_other_state, 0, new_this_state)}
+      {updates, %{new_this_state | next_state: new_next_state}}
     end
 
     {init_fn, apply_fn}
@@ -751,16 +750,14 @@ defmodule Axon.Updates do
   """
   def stateful({parent_init_fn, parent_apply_fn} \\ identity(), init_fn, apply_fn) do
     init_fn = fn params ->
-      state = parent_init_fn.(params)
-      Tuple.insert_at(state, 0, init_fn.(params))
+      %GradientState{} = gradient_state = init_fn.(params)
+      %{gradient_state | next_state: parent_init_fn.(params)}
     end
 
-    apply_fn = fn updates, state, params ->
-      this_state = elem(state, 0)
-      other_state = Tuple.delete_at(state, 0)
-      {updates, new_other_state} = parent_apply_fn.(updates, other_state, params)
+    apply_fn = fn updates, %GradientState{next_state: next_state} = this_state, params ->
+      {updates, new_next_state} = parent_apply_fn.(updates, next_state, params)
       {updates, new_this_state} = apply_fn.(updates, this_state, params)
-      {updates, Tuple.insert_at(new_other_state, 0, new_this_state)}
+      {updates, %{new_this_state | next_state: new_next_state}}
     end
 
     {init_fn, apply_fn}
@@ -787,6 +784,13 @@ defmodule Axon.Updates do
           Map.merge(s1, s2, fn _, _, s -> s end)
         end)
     end)
+  end
+
+  @doc """
+  Returns a new gradient state from state.
+  """
+  defn gradient_state(state) do
+    %GradientState{state: state}
   end
 
   ## Helpers

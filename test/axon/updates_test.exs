@@ -4,6 +4,9 @@ defmodule Axon.UpdatesTest do
 
   import Axon.Updates
   import AxonTestUtil
+  alias Axon.Updates.GradientState
+
+  @empty_state %GradientState{state: %{}, next_state: {}}
 
   describe "add_decayed_weights" do
     test "constructs a stateless transformation" do
@@ -11,7 +14,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = add_decayed_weights(decay: 0.95)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with itself" do
@@ -22,7 +25,7 @@ defmodule Axon.UpdatesTest do
 
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with stateful transformation" do
@@ -30,8 +33,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_adam([]) |> add_decayed_weights(decay: 0.95)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {adam_state} = init_fn.(params)
-      assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = adam_state
+      assert %GradientState{} = adam_state = init_fn.(params)
+      assert %GradientState{state: %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count}} = adam_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert count == Nx.tensor(0)
@@ -47,7 +50,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_a, expected_a)
     end
 
@@ -75,7 +78,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -104,7 +107,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -116,7 +119,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = clip(delta: 2.0)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with itself" do
@@ -124,7 +127,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = clip(delta: 2.0) |> clip(delta: 2.0)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with stateful transformation" do
@@ -132,8 +135,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_adam([]) |> clip(delta: 2.0)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {adam_state} = init_fn.(params)
-      assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = adam_state
+      assert %GradientState{} = adam_state = init_fn.(params)
+      assert %GradientState{state: %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count}} = adam_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert count == Nx.tensor(0)
@@ -149,7 +152,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_a, expected_a)
     end
 
@@ -177,7 +180,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -206,7 +209,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -218,7 +221,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = clip_by_global_norm(max_norm: 1.0)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with itself" do
@@ -229,7 +232,7 @@ defmodule Axon.UpdatesTest do
 
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with stateful transformation" do
@@ -237,8 +240,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_adam([]) |> clip_by_global_norm(max_norm: 1.0)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {adam_state} = init_fn.(params)
-      assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = adam_state
+      assert %GradientState{} = adam_state = init_fn.(params)
+      assert %GradientState{state: %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count}} = adam_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert count == Nx.tensor(0)
@@ -254,7 +257,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_a, expected_a)
     end
 
@@ -282,7 +285,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -311,7 +314,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -323,7 +326,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = centralize()
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with itself" do
@@ -331,7 +334,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = centralize() |> centralize()
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with stateful transformation" do
@@ -339,8 +342,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_adam([]) |> centralize()
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {adam_state} = init_fn.(params)
-      assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = adam_state
+      assert %GradientState{} = adam_state = init_fn.(params)
+      assert %GradientState{state: %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count}} = adam_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert count == Nx.tensor(0)
@@ -356,7 +359,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_a, expected_a)
     end
 
@@ -384,7 +387,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -413,7 +416,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -425,7 +428,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = identity()
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with itself" do
@@ -433,7 +436,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = identity() |> identity()
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with stateful transformation" do
@@ -441,8 +444,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_adam([]) |> identity()
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {adam_state} = init_fn.(params)
-      assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = adam_state
+      assert %GradientState{} = adam_state = init_fn.(params)
+      assert %GradientState{state: %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count}} = adam_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert count == Nx.tensor(0)
@@ -458,7 +461,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_a, expected_a)
     end
 
@@ -486,7 +489,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -515,7 +518,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -527,7 +530,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale(1.0e-2)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with itself" do
@@ -535,7 +538,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale(1.0e-2) |> scale(1.0e-2)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with stateful transformation" do
@@ -543,8 +546,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_adam([]) |> scale(1.0e-2)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {adam_state} = init_fn.(params)
-      assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = adam_state
+      assert %GradientState{} = adam_state = init_fn.(params)
+      assert %GradientState{state: %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count}} = adam_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert count == Nx.tensor(0)
@@ -560,7 +563,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_a, expected_a)
     end
 
@@ -588,7 +591,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -617,7 +620,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -629,7 +632,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_adam([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {adam_state} = init_fn.(params)
+      assert %GradientState{state: adam_state} = init_fn.(params)
       assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = adam_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
@@ -641,8 +644,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_adam([]) |> scale_by_adam([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {adam_state_1, adam_state_2} = init_fn.(params)
-      assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = adam_state_1
+      assert %GradientState{state: adam_state_2, next_state: adam_state_1} = init_fn.(params)
+      assert %GradientState{state: %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count}} = adam_state_1
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert count == Nx.tensor(0)
@@ -657,7 +660,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_adam([]) |> scale(1.0e-2)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {adam_state} = init_fn.(params)
+      assert %GradientState{state: adam_state} = init_fn.(params)
       assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = adam_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
@@ -678,7 +681,7 @@ defmodule Axon.UpdatesTest do
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
 
-      assert {%{mu: %{a: actual_next_mu_a}, nu: %{a: actual_next_nu_a}, count: actual_next_count}} =
+      assert %GradientState{state: %{mu: %{a: actual_next_mu_a}, nu: %{a: actual_next_nu_a}, count: actual_next_count}} =
                new_state
 
       assert_all_close(actual_a, expected_a)
@@ -716,7 +719,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert {%{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
+      assert %GradientState{state: %{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
       assert %{a: %{b: actual_next_mu_b, c: %{d: %{}, e: actual_next_mu_e}}} = new_mu
       assert %{a: %{b: actual_next_nu_b, c: %{d: %{}, e: actual_next_nu_e}}} = new_nu
       assert_all_close(actual_b, expected_b)
@@ -757,7 +760,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert {%{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
+      assert %GradientState{state: %{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
       assert {{actual_next_mu_b, {{}, actual_next_mu_e}}} = new_mu
       assert {{actual_next_nu_b, {{}, actual_next_nu_e}}} = new_nu
       assert_all_close(actual_b, expected_b)
@@ -776,7 +779,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_belief([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {belief_state} = init_fn.(params)
+      assert %GradientState{state: belief_state} = init_fn.(params)
       assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = belief_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
@@ -788,8 +791,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_belief([]) |> scale_by_belief([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {belief_state_1, belief_state_2} = init_fn.(params)
-      assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = belief_state_1
+      assert %GradientState{state: belief_state_2, next_state: belief_state_1} = init_fn.(params)
+      assert %GradientState{state: %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count}} = belief_state_1
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert count == Nx.tensor(0)
@@ -804,7 +807,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_belief([]) |> scale(1.0e-2)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {belief_state} = init_fn.(params)
+      assert %GradientState{state: belief_state} = init_fn.(params)
       assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = belief_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
@@ -825,7 +828,7 @@ defmodule Axon.UpdatesTest do
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
 
-      assert {%{mu: %{a: actual_next_mu_a}, nu: %{a: actual_next_nu_a}, count: actual_next_count}} =
+      assert %GradientState{state: %{mu: %{a: actual_next_mu_a}, nu: %{a: actual_next_nu_a}, count: actual_next_count}} =
                new_state
 
       assert_all_close(actual_a, expected_a)
@@ -863,7 +866,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert {%{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
+      assert %GradientState{state: %{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
       assert %{a: %{b: actual_next_mu_b, c: %{d: %{}, e: actual_next_mu_e}}} = new_mu
       assert %{a: %{b: actual_next_nu_b, c: %{d: %{}, e: actual_next_nu_e}}} = new_nu
       assert_all_close(actual_b, expected_b)
@@ -904,7 +907,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert {%{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
+      assert %GradientState{state: %{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
       assert {{actual_next_mu_b, {{}, actual_next_mu_e}}} = new_mu
       assert {{actual_next_nu_b, {{}, actual_next_nu_e}}} = new_nu
       assert_all_close(actual_b, expected_b)
@@ -923,7 +926,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_radam([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {adam_state} = init_fn.(params)
+      assert %GradientState{state: adam_state} = init_fn.(params)
       assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = adam_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
@@ -935,8 +938,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_radam([]) |> scale_by_radam([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {adam_state_1, adam_state_2} = init_fn.(params)
-      assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = adam_state_1
+      assert %GradientState{state: adam_state_2, next_state: adam_state_1} = init_fn.(params)
+      assert %GradientState{state: %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count}} = adam_state_1
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert count == Nx.tensor(0)
@@ -951,7 +954,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_radam([]) |> scale(1.0e-2)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {adam_state} = init_fn.(params)
+      assert %GradientState{state: adam_state} = init_fn.(params)
       assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = adam_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
@@ -972,7 +975,7 @@ defmodule Axon.UpdatesTest do
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
 
-      assert {%{mu: %{a: actual_next_mu_a}, nu: %{a: actual_next_nu_a}, count: actual_next_count}} =
+      assert %GradientState{state: %{mu: %{a: actual_next_mu_a}, nu: %{a: actual_next_nu_a}, count: actual_next_count}} =
                new_state
 
       assert_all_close(actual_a, expected_a)
@@ -1010,7 +1013,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert {%{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
+      assert %GradientState{state: %{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
       assert %{a: %{b: actual_next_mu_b, c: %{d: %{}, e: actual_next_mu_e}}} = new_mu
       assert %{a: %{b: actual_next_nu_b, c: %{d: %{}, e: actual_next_nu_e}}} = new_nu
       assert_all_close(actual_b, expected_b)
@@ -1051,7 +1054,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert {%{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
+      assert %GradientState{state: %{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
       assert {{actual_next_mu_b, {{}, actual_next_mu_e}}} = new_mu
       assert {{actual_next_nu_b, {{}, actual_next_nu_e}}} = new_nu
       assert_all_close(actual_b, expected_b)
@@ -1070,7 +1073,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_rms([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {rms_state} = init_fn.(params)
+      assert %GradientState{state: rms_state} = init_fn.(params)
       assert %{nu: %{a: nu_a}} = rms_state
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
     end
@@ -1080,8 +1083,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_rms([]) |> scale_by_rms([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {rms_state_1, rms_state_2} = init_fn.(params)
-      assert %{nu: %{a: nu_a}} = rms_state_1
+      assert %GradientState{state: rms_state_2, next_state: rms_state_1} = init_fn.(params)
+      assert %GradientState{state: %{nu: %{a: nu_a}}} = rms_state_1
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert %{nu: %{a: nu_a}} = rms_state_2
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
@@ -1092,7 +1095,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_rms([]) |> scale(1.0e-2)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {rms_state} = init_fn.(params)
+      assert %GradientState{state: rms_state} = init_fn.(params)
       assert %{nu: %{a: nu_a}} = rms_state
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
     end
@@ -1108,7 +1111,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
-      assert {%{nu: %{a: actual_next_nu_a}}} = new_state
+      assert %GradientState{state: %{nu: %{a: actual_next_nu_a}}} = new_state
       assert_all_close(actual_a, expected_a)
       assert_all_close(expected_next_nu_a, actual_next_nu_a)
     end
@@ -1139,7 +1142,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert {%{nu: new_nu}} = new_state
+      assert %GradientState{state: %{nu: new_nu}} = new_state
       assert %{a: %{b: actual_next_nu_b, c: %{d: %{}, e: actual_next_nu_e}}} = new_nu
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
@@ -1173,7 +1176,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert {%{nu: new_nu}} = new_state
+      assert %GradientState{state: %{nu: new_nu}} = new_state
       assert {{actual_next_nu_b, {{}, actual_next_nu_e}}} = new_nu
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
@@ -1188,7 +1191,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_rss([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {rss_state} = init_fn.(params)
+      assert %GradientState{state: rss_state} = init_fn.(params)
       assert %{sum_of_squares: %{a: sum_of_squares_a}} = rss_state
       assert sum_of_squares_a == Nx.tensor([0.1, 0.1, 0.1])
     end
@@ -1198,8 +1201,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_rss([]) |> scale_by_rss([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {rss_state_1, rss_state_2} = init_fn.(params)
-      assert %{sum_of_squares: %{a: sum_of_squares_a}} = rss_state_1
+      assert %GradientState{state: rss_state_2, next_state: rss_state_1} = init_fn.(params)
+      assert %GradientState{state: %{sum_of_squares: %{a: sum_of_squares_a}}} = rss_state_1
       assert sum_of_squares_a == Nx.tensor([0.1, 0.1, 0.1])
       assert %{sum_of_squares: %{a: sum_of_squares_a}} = rss_state_2
       assert sum_of_squares_a == Nx.tensor([0.1, 0.1, 0.1])
@@ -1210,7 +1213,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_rss([]) |> scale(1.0e-2)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {rss_state} = init_fn.(params)
+      assert %GradientState{state: rss_state} = init_fn.(params)
       assert %{sum_of_squares: %{a: sum_of_squares_a}} = rss_state
       assert sum_of_squares_a == Nx.tensor([0.1, 0.1, 0.1])
     end
@@ -1226,7 +1229,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
-      assert {%{sum_of_squares: %{a: actual_next_sum_of_squares_a}}} = new_state
+      assert %GradientState{state: %{sum_of_squares: %{a: actual_next_sum_of_squares_a}}} = new_state
       assert_all_close(actual_a, expected_a)
       assert_all_close(actual_next_sum_of_squares_a, expected_next_sum_of_squares_a)
     end
@@ -1257,7 +1260,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert {%{sum_of_squares: new_sum_of_squares}} = new_state
+      assert %GradientState{state: %{sum_of_squares: new_sum_of_squares}} = new_state
 
       assert %{
                a: %{
@@ -1298,7 +1301,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert {%{sum_of_squares: new_sum_of_squares}} = new_state
+      assert %GradientState{state: %{sum_of_squares: new_sum_of_squares}} = new_state
 
       assert {
                {
@@ -1320,8 +1323,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_schedule(Axon.Schedules.polynomial_decay())
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {schedule_state} = init_fn.(params)
-      assert %{count: count} = schedule_state
+      assert schedule_state = init_fn.(params)
+      assert %GradientState{state: %{count: count}} = schedule_state
       assert count == Nx.tensor(0)
     end
 
@@ -1334,10 +1337,10 @@ defmodule Axon.UpdatesTest do
 
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {schedule_state_2, schedule_state_1} = init_fn.(params)
+      assert %GradientState{state: schedule_state_1, next_state: schedule_state_2} = init_fn.(params)
       assert %{count: count} = schedule_state_1
       assert count == Nx.tensor(0)
-      assert %{count: count} = schedule_state_2
+      assert %GradientState{state: %{count: count}} = schedule_state_2
       assert count == Nx.tensor(0)
     end
 
@@ -1349,7 +1352,7 @@ defmodule Axon.UpdatesTest do
 
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {schedule_state} = init_fn.(params)
+      assert %GradientState{state: schedule_state} = init_fn.(params)
       assert %{count: count} = schedule_state
       assert count == Nx.tensor(0)
     end
@@ -1365,7 +1368,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
-      assert {%{count: actual_next_count}} = new_state
+      assert %GradientState{state: %{count: actual_next_count}} = new_state
       assert_all_close(actual_a, expected_a)
       assert actual_next_count == expected_next_count
     end
@@ -1395,7 +1398,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert {%{count: actual_next_count}} = new_state
+      assert %GradientState{state: %{count: actual_next_count}} = new_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
       assert actual_next_count == expected_next_count
@@ -1426,7 +1429,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert {%{count: actual_next_count}} = new_state
+      assert %GradientState{state: %{count: actual_next_count}} = new_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
       assert actual_next_count == expected_next_count
@@ -1439,7 +1442,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_stddev(initial_scale: 0.1)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {stddev_state} = init_fn.(params)
+      assert %GradientState{state: stddev_state} = init_fn.(params)
       assert %{mu: %{a: mu_a}, nu: %{a: nu_a}} = stddev_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.1, 0.1, 0.1])
@@ -1453,8 +1456,8 @@ defmodule Axon.UpdatesTest do
 
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {stddev_state_2, stddev_state_1} = init_fn.(params)
-      assert %{mu: %{a: mu_a}, nu: %{a: nu_a}} = stddev_state_1
+      assert %GradientState{state: stddev_state_2, next_state: stddev_state_1} = init_fn.(params)
+      assert %GradientState{state: %{mu: %{a: mu_a}, nu: %{a: nu_a}}} = stddev_state_1
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.1, 0.1, 0.1])
       assert %{mu: %{a: mu_a}, nu: %{a: nu_a}} = stddev_state_2
@@ -1467,7 +1470,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_stddev(initial_scale: 0.1) |> scale(1.0e-2)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {stddev_state} = init_fn.(params)
+      assert %GradientState{state: stddev_state} = init_fn.(params)
       assert %{mu: %{a: mu_a}, nu: %{a: nu_a}} = stddev_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.1, 0.1, 0.1])
@@ -1485,7 +1488,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
-      assert {%{mu: %{a: actual_next_mu_a}, nu: %{a: actual_next_nu_a}}} = new_state
+      assert %GradientState{state: %{mu: %{a: actual_next_mu_a}, nu: %{a: actual_next_nu_a}}} = new_state
       assert_all_close(actual_a, expected_a)
       assert_all_close(actual_next_mu_a, expected_next_mu_a)
       assert_all_close(actual_next_nu_a, expected_next_nu_a)
@@ -1519,7 +1522,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert {%{mu: new_mu, nu: new_nu}} = new_state
+      assert %GradientState{state: %{mu: new_mu, nu: new_nu}} = new_state
       assert %{a: %{b: actual_next_mu_b, c: %{d: %{}, e: actual_next_mu_e}}} = new_mu
       assert %{a: %{b: actual_next_nu_b, c: %{d: %{}, e: actual_next_nu_e}}} = new_nu
       assert_all_close(actual_b, expected_b)
@@ -1558,7 +1561,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert {%{mu: new_mu, nu: new_nu}} = new_state
+      assert %GradientState{state: %{mu: new_mu, nu: new_nu}} = new_state
       assert {{actual_next_mu_b, {{}, actual_next_mu_e}}} = new_mu
       assert {{actual_next_nu_b, {{}, actual_next_nu_e}}} = new_nu
       assert_all_close(actual_b, expected_b)
@@ -1576,7 +1579,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_trust_ratio(min_norm: 1.0)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with itself" do
@@ -1587,7 +1590,7 @@ defmodule Axon.UpdatesTest do
 
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert init_fn.(params) == {}
+      assert init_fn.(params) == @empty_state
     end
 
     test "composes with stateful transformation" do
@@ -1595,8 +1598,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_adam([]) |> scale_by_trust_ratio(min_norm: 1.0)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {adam_state} = init_fn.(params)
-      assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = adam_state
+      assert adam_state = init_fn.(params)
+      assert %GradientState{state: %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count}} = adam_state
       assert mu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert nu_a == Nx.tensor([0.0, 0.0, 0.0])
       assert count == Nx.tensor(0)
@@ -1612,7 +1615,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_a, expected_a)
     end
 
@@ -1640,7 +1643,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -1669,7 +1672,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert new_state == {}
+      assert new_state == @empty_state
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
     end
@@ -1681,7 +1684,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_yogi([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {yogi_state} = init_fn.(params)
+      assert %GradientState{state: yogi_state} = init_fn.(params)
       assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = yogi_state
       assert mu_a == Nx.tensor([1.0e-6, 1.0e-6, 1.0e-6])
       assert nu_a == Nx.tensor([1.0e-6, 1.0e-6, 1.0e-6])
@@ -1693,8 +1696,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_yogi([]) |> scale_by_yogi([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {yogi_state_1, yogi_state_2} = init_fn.(params)
-      assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = yogi_state_1
+      assert %GradientState{state: yogi_state_2, next_state: yogi_state_1} = init_fn.(params)
+      assert %GradientState{state: %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count}} = yogi_state_1
       assert mu_a == Nx.tensor([1.0e-6, 1.0e-6, 1.0e-6])
       assert nu_a == Nx.tensor([1.0e-6, 1.0e-6, 1.0e-6])
       assert count == Nx.tensor(0)
@@ -1709,7 +1712,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = scale_by_yogi([]) |> scale(1.0e-2)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {yogi_state} = init_fn.(params)
+      assert %GradientState{state: yogi_state} = init_fn.(params)
       assert %{mu: %{a: mu_a}, nu: %{a: nu_a}, count: count} = yogi_state
       assert mu_a == Nx.tensor([1.0e-6, 1.0e-6, 1.0e-6])
       assert nu_a == Nx.tensor([1.0e-6, 1.0e-6, 1.0e-6])
@@ -1730,7 +1733,7 @@ defmodule Axon.UpdatesTest do
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
 
-      assert {%{mu: %{a: actual_next_mu_a}, nu: %{a: actual_next_nu_a}, count: actual_next_count}} =
+      assert %GradientState{state: %{mu: %{a: actual_next_mu_a}, nu: %{a: actual_next_nu_a}, count: actual_next_count}} =
                new_state
 
       assert_all_close(actual_a, expected_a)
@@ -1768,7 +1771,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert {%{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
+      assert %GradientState{state: %{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
       assert %{a: %{b: actual_next_mu_b, c: %{d: %{}, e: actual_next_mu_e}}} = new_mu
       assert %{a: %{b: actual_next_nu_b, c: %{d: %{}, e: actual_next_nu_e}}} = new_nu
       assert_all_close(actual_b, expected_b)
@@ -1809,7 +1812,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert {%{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
+      assert %GradientState{state: %{mu: new_mu, nu: new_nu, count: actual_next_count}} = new_state
       assert {{actual_next_mu_b, {{}, actual_next_mu_e}}} = new_mu
       assert {{actual_next_nu_b, {{}, actual_next_nu_e}}} = new_nu
       assert_all_close(actual_b, expected_b)
@@ -1828,7 +1831,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = trace([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {trace_state} = init_fn.(params)
+      assert %GradientState{state: trace_state} = init_fn.(params)
       assert %{trace: %{a: trace_a}} = trace_state
       assert trace_a == Nx.tensor([0.0, 0.0, 0.0])
     end
@@ -1838,8 +1841,8 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = trace([]) |> trace([])
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {trace_state_2, trace_state_1} = init_fn.(params)
-      assert %{trace: %{a: trace_a}} = trace_state_1
+      assert %GradientState{state: trace_state_2, next_state: trace_state_1} = init_fn.(params)
+      assert %GradientState{state: %{trace: %{a: trace_a}}} = trace_state_1
       assert trace_a == Nx.tensor([0.0, 0.0, 0.0])
       assert %{trace: %{a: trace_a}} = trace_state_2
       assert trace_a == Nx.tensor([0.0, 0.0, 0.0])
@@ -1850,7 +1853,7 @@ defmodule Axon.UpdatesTest do
       assert {init_fn, update_fn} = trace([]) |> scale(1.0e-2)
       assert is_function(init_fn, 1)
       assert is_function(update_fn, 3)
-      assert {trace_state} = init_fn.(params)
+      assert %GradientState{state: trace_state} = init_fn.(params)
       assert %{trace: %{a: trace_a}} = trace_state
       assert trace_a == Nx.tensor([0.0, 0.0, 0.0])
     end
@@ -1866,7 +1869,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
-      assert {%{trace: %{a: actual_next_trace}}} = new_state
+      assert %GradientState{state: %{trace: %{a: actual_next_trace}}} = new_state
       assert_all_close(actual_a, expected_a)
       assert_all_close(actual_next_trace, expected_next_trace)
     end
@@ -1897,7 +1900,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert {%{trace: new_trace}} = new_state
+      assert %GradientState{state: %{trace: new_trace}} = new_state
       assert %{a: %{b: actual_next_trace_b, c: %{d: %{}, e: actual_next_trace_e}}} = new_trace
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
@@ -1916,7 +1919,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: actual_a} = new_updates
-      assert {%{trace: %{a: actual_next_trace}}} = new_state
+      assert %GradientState{state: %{trace: %{a: actual_next_trace}}} = new_state
       assert_all_close(actual_a, expected_a)
       assert_all_close(actual_next_trace, expected_next_trace)
     end
@@ -1947,7 +1950,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert %{a: %{b: actual_b, c: %{d: %{}, e: actual_e}}} = new_updates
-      assert {%{trace: new_trace}} = new_state
+      assert %GradientState{state: %{trace: new_trace}} = new_state
       assert %{a: %{b: actual_next_trace_b, c: %{d: %{}, e: actual_next_trace_e}}} = new_trace
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
@@ -1981,7 +1984,7 @@ defmodule Axon.UpdatesTest do
 
       assert {new_updates, new_state} = update_fn.(updates, state, params)
       assert {{actual_b, {{}, actual_e}}} = new_updates
-      assert {%{trace: new_trace}} = new_state
+      assert %GradientState{state: %{trace: new_trace}} = new_state
       assert {{actual_next_trace_b, {{}, actual_next_trace_e}}} = new_trace
       assert_all_close(actual_b, expected_b)
       assert_all_close(actual_e, expected_e)
